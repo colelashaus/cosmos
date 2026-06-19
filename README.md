@@ -26,10 +26,11 @@ Made for three kids (ages 4, 7, and 9) — but great for any beginning reader.
      stars) as you fly to a real NASA planet.
    - 🌟 **Star Rescue** — type the words on floating stars to beam them aboard.
 
-You have a row of ❤️ **lives** — typing the wrong letter too many times ends the
-run (with a friendly "play again" screen). Younger levels get more lives (Easy 5,
-Medium 4, Hard 3), and every completed word sets off a **big confetti burst** 🎉.
-There's gentle background **music** and spoken words throughout.
+**Easy and Medium are endless** — a wrong letter is just a gentle buzz, so younger
+players never get stuck. **Hard** adds a row of ❤️ **lives** (3): too many wrong
+letters ends the run (with a friendly "play again" screen). Every completed word
+sets off a **big confetti burst** 🎉, and there's gentle background **music** and
+spoken words throughout.
 
 ### Keys
 - **Letters / Space** — type the target words.

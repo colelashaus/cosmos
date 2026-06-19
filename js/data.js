@@ -74,7 +74,7 @@ CTQ.data = (function () {
       maxTargets: 1,
       fallSpeed: 16,      // px/sec for descending mode (gentle)
       driftSpeed: 14,
-      lives: 5,           // wrong keys you can make before game over
+      lives: null,        // null = endless (no game over) for the youngest players
       fuelGoal: 4,        // words to fill the rocket
       speakOnSpawn: true,
       bigText: true,
@@ -90,7 +90,7 @@ CTQ.data = (function () {
       maxTargets: 3,
       fallSpeed: 26,
       driftSpeed: 22,
-      lives: 4,
+      lives: null,        // endless (no game over)
       fuelGoal: 5,
       speakOnSpawn: false,
       bigText: false,

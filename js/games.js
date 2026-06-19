@@ -141,7 +141,8 @@ CTQ.games = (function () {
     let groundFlash = 0;
     let nukeFlash = 0;
     let clock = 0;
-    let lives = cfg.lives;
+    const useLives = !!cfg.lives;     // Easy/Medium are endless; Hard has lives
+    let lives = cfg.lives || 0;
     let over = false;
 
     function spawn() {
@@ -249,12 +250,14 @@ CTQ.games = (function () {
       active = null;
     }
 
-    // A wrong keystroke costs a life; running out ends the game.
+    // Wrong keystroke. In endless modes (Easy/Medium) it's just a gentle buzz;
+    // on Hard it costs a life and running out ends the game.
     function loseLife() {
       if (over) return;
-      lives--;
       streak = 0;
       shake = 0.3;
+      if (!useLives) { A.sfx.wrong(); return; }
+      lives--;
       A.sfx.hurt();
       if (lives <= 0) {
         lives = 0;
@@ -290,7 +293,7 @@ CTQ.games = (function () {
     return {
       enter() {
         targets = []; active = null; score = 0; hits = 0; streak = 0;
-        lives = cfg.lives; over = false;
+        lives = cfg.lives || 0; over = false;
         spawnT = 0.6;
         CTQ.state.typing = true;
         // seed a couple for rescue so the screen isn't empty
@@ -488,7 +491,8 @@ CTQ.games = (function () {
     let rocketY = 0, rocketVy = 0;
     let countdownNum = 0;
     let warp = 0, rumble = 0;
-    let lives = cfg.lives;
+    const useLives = !!cfg.lives;     // Easy/Medium endless; Hard has lives
+    let lives = cfg.lives || 0;
     let over = false;
 
     // sprite-based particle engines (built in enter())
@@ -544,8 +548,9 @@ CTQ.games = (function () {
 
     function loseLife() {
       if (over) return;
-      lives--; rumble = 6;
-      A.sfx.hurt();
+      rumble = 6;
+      if (!useLives) { A.sfx.wrong(); return; }
+      lives--; A.sfx.hurt();
       if (lives <= 0) { lives = 0; over = true; A.sfx.gameover(); if (onDead) onDead(score); }
     }
 
@@ -587,7 +592,7 @@ CTQ.games = (function () {
         fuel = 0; score = 0; planetsVisited = 0; planetIdx = 0;
         state = "type"; stateT = 0; rocketY = 0; rocketVy = 0;
         warp = 0; rumble = 0;
-        lives = cfg.lives; over = false;
+        lives = cfg.lives || 0; over = false;
         CTQ.state.typing = true;
         E.setWarp(0);
         nextWord();
