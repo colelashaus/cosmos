@@ -4,8 +4,7 @@
    ============================================================ */
 window.CTQ = window.CTQ || {};
 
-// Shared runtime flags. `typing` is true while a typing mini-game is active,
-// so the global "M = mute" hotkey can stand down (M is also a letter to type).
+// Shared runtime flags. `typing` is true while a typing mini-game is active.
 CTQ.state = CTQ.state || { typing: false };
 
 CTQ.engine = (function () {

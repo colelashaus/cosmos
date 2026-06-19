@@ -75,7 +75,7 @@ CTQ.menus = (function () {
           <div class="title">COSMIC<br>TYPING QUEST</div>
           <div class="subtitle">⭐ Learn to spell &amp; type — among the stars! ⭐</div>
           <div class="blink">▶ Press ENTER or SPACE to begin</div>
-          <div class="hint-bar">Best on a keyboard • <kbd>M</kbd> mutes sound</div>
+          <div class="hint-bar">Best played on a keyboard 🎹</div>
         `);
       },
       exit() { clearUI(); },

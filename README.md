@@ -32,8 +32,6 @@ There's gentle background **music** and spoken words throughout.
 - **Letters / Space** — type the target words.
 - **← → ↑ ↓** + **Enter** (or number keys / mouse) — navigate menus.
 - **Esc** — back to the previous screen.
-- **M** — mute / unmute sound (works in menus; during a game use the 🔊 button,
-  since *M* is also a letter you might be spelling). The 🔊 button always works.
 
 ---
 

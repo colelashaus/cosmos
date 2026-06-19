@@ -164,20 +164,6 @@ html, body {
 }
 .back-link:hover { background: rgba(255,255,255,0.2); }
 
-#mute-btn {
-  position: absolute;
-  top: 14px; right: 14px;
-  z-index: 30;
-  width: 46px; height: 46px;
-  border-radius: 50%;
-  border: 1px solid rgba(255,255,255,0.25);
-  background: rgba(255,255,255,0.12);
-  color: #fff;
-  font-size: 20px;
-  cursor: pointer;
-}
-#mute-btn:hover { background: rgba(255,255,255,0.22); }
-
 #rotate-hint {
   display: none;
   position: absolute;

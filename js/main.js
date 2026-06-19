@@ -1,5 +1,5 @@
 /* ============================================================
-   Main — boot the game, wire scene navigation, mute button.
+   Main — boot the game and wire scene navigation.
    Flow:  Intro → Difficulty → Mission select → Game (Esc back)
    ============================================================ */
 (function () {
@@ -40,21 +40,6 @@
   function goGameOver(score, gameKey) {
     E.setScene(M.createGameOver(score, () => goGame(gameKey), goGameSelect));
   }
-
-  // ---- Mute button ----
-  const muteBtn = document.getElementById("mute-btn");
-  function refreshMute() {
-    muteBtn.textContent = A.isMuted() ? "🔇" : "🔊";
-  }
-  muteBtn.addEventListener("click", () => { A.setMuted(!A.isMuted()); refreshMute(); });
-  window.addEventListener("keydown", (e) => {
-    // "M" is also a letter you type in the game, so the keyboard shortcut only
-    // toggles mute when you're NOT in a typing mini-game. The 🔊 button always works.
-    if ((e.key === "m" || e.key === "M") && !CTQ.state.typing && !e.ctrlKey && !e.metaKey) {
-      A.setMuted(!A.isMuted());
-      refreshMute();
-    }
-  });
 
   // ---- Boot ----
   E.resize();
