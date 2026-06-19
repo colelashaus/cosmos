@@ -595,6 +595,7 @@ CTQ.games = (function () {
         lives = cfg.lives || 0; over = false;
         CTQ.state.typing = true;
         E.setWarp(0);
+        if (CTQ.three && CTQ.three.enabled) CTQ.three.setDestination(D.PLANETS[planetIdx]);
         nextWord();
       },
       exit() { CTQ.state.typing = false; E.setWarp(0); },
@@ -629,6 +630,7 @@ CTQ.games = (function () {
             planetIdx = (planetIdx + 1) % D.PLANETS.length;
             A.sfx.fanfare();
             A.speak("Welcome to " + D.PLANETS[planetIdx] + "!");
+            if (CTQ.three && CTQ.three.enabled) CTQ.three.setDestination(D.PLANETS[planetIdx]);
             state = "arrive"; stateT = 0;
           }
         } else if (state === "arrive") {
@@ -646,21 +648,25 @@ CTQ.games = (function () {
         const destKey = D.PLANETS[planetIdx];
         const n = nozzle();
 
-        // destination planet (top center) — pulses on arrival
+        // destination planet (top center). With the 3D layer on, the rotating
+        // 3D sphere is the destination, so we draw only the text label.
+        const use3DPlanet = !!(CTQ.three && CTQ.three.enabled);
         const im = E.img(destKey);
         const arriveZoom = state === "arrive" ? 1 + Math.min(0.35, stateT * 0.25) : 1;
         const pr = Math.min(W, H) * 0.13 * arriveZoom;
         const py = H * 0.19 + (state === "arrive" ? Math.sin(stateT * 2) * 6 : 0);
-        ctx.save();
-        ctx.beginPath(); ctx.arc(W / 2, py, pr, 0, Math.PI * 2); ctx.clip();
-        if (im) ctx.drawImage(im, W / 2 - pr, py - pr, pr * 2, pr * 2);
-        else { ctx.fillStyle = "#7a5"; ctx.fillRect(W / 2 - pr, py - pr, pr * 2, pr * 2); }
-        ctx.restore();
-        ctx.beginPath(); ctx.arc(W / 2, py, pr, 0, Math.PI * 2);
-        ctx.strokeStyle = "rgba(90,215,255,0.45)"; ctx.lineWidth = 3; ctx.stroke();
+        if (!use3DPlanet) {
+          ctx.save();
+          ctx.beginPath(); ctx.arc(W / 2, py, pr, 0, Math.PI * 2); ctx.clip();
+          if (im) ctx.drawImage(im, W / 2 - pr, py - pr, pr * 2, pr * 2);
+          else { ctx.fillStyle = "#7a5"; ctx.fillRect(W / 2 - pr, py - pr, pr * 2, pr * 2); }
+          ctx.restore();
+          ctx.beginPath(); ctx.arc(W / 2, py, pr, 0, Math.PI * 2);
+          ctx.strokeStyle = "rgba(90,215,255,0.45)"; ctx.lineWidth = 3; ctx.stroke();
+        }
         ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
         ctx.fillStyle = "#cfe6ff"; ctx.font = "800 18px " + FONT;
-        ctx.fillText("Destination: " + destKey.toUpperCase(), W / 2, py + pr + 26);
+        ctx.fillText("Destination: " + destKey.toUpperCase(), W / 2, use3DPlanet ? 86 : py + pr + 26);
 
         // ground shockwave rings
         for (const r of rings) {

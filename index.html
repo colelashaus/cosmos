@@ -8,6 +8,9 @@
 </head>
 <body>
   <div id="game-wrap">
+    <!-- 3D background layer (Three.js): rotating NASA-textured planets + starfield -->
+    <canvas id="bg3d"></canvas>
+    <!-- 2D gameplay + HUD layer, transparent so the 3D layer shows through -->
     <canvas id="game"></canvas>
 
     <!-- HTML overlay used for the menu screens (keyboard + click friendly) -->
@@ -21,6 +24,8 @@
   <script src="js/audio.js"></script>
   <script src="js/engine.js"></script>
   <script src="js/sprites.js"></script>
+  <script src="js/vendor/three.min.js"></script>
+  <script src="js/three3d.js"></script>
   <script src="js/menus.js"></script>
   <script src="js/games.js"></script>
   <script src="js/main.js"></script>

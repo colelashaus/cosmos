@@ -7,6 +7,11 @@ levels, with spoken words and arcade-style sound effects.
 
 Made for three kids (ages 4, 7, and 9) — but great for any beginning reader.
 
+A **3D background layer** (Three.js, bundled locally) wraps the NASA images onto
+real rotating planet spheres, with a warp-speed starfield during launches. It
+degrades gracefully: if WebGL isn't available, the game falls back to a 2D
+starfield and plays exactly the same.
+
 ---
 
 ## 🎮 How to play
@@ -79,7 +84,10 @@ styles.css          Menus & layout
 js/
   data.js           Word lists, difficulty tuning, asset list
   audio.js          WebAudio sound effects + browser speech
-  engine.js         Canvas, starfield, particles, scene loop
+  engine.js         2D canvas, starfield, particles, scene loop
+  sprites.js        Sprite/particle engine (rocket, exhaust, smoke)
+  three3d.js        3D background layer: NASA-textured planets + warp starfield
+  vendor/three.min.js  Three.js (bundled locally — no CDN at runtime)
   menus.js          Intro + difficulty + mission screens
   games.js          The three mini-games
   main.js           Boot + navigation

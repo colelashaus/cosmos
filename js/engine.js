@@ -46,8 +46,13 @@ CTQ.engine = (function () {
 
   // ---------- Starfield (always-on background) ----------
   let stars = [];
+  let stars2D = true;           // turned off when the 3D background layer is live
+  function setStarfield2D(on) { stars2D = on; }
   let warp = 0;                 // 0 = calm; ramps up for warp-speed launches
-  function setWarp(v) { warp = Math.max(0, v || 0); }
+  function setWarp(v) {
+    warp = Math.max(0, v || 0);
+    if (window.CTQ.three && CTQ.three.enabled) CTQ.three.setWarp(warp);
+  }
   function initStars() {
     stars = [];
     const n = Math.round((W * H) / 6000);
@@ -218,14 +223,15 @@ CTQ.engine = (function () {
     const dt = Math.min((t - lastT) / 1000 || 0, 0.05);
     lastT = t;
 
-    updateStars(dt);
+    if (window.CTQ.three && CTQ.three.enabled) CTQ.three.update(dt);
+    if (stars2D) updateStars(dt);
     updateParticles(dt);
     updatePopups(dt);
     if (current && current.update) current.update(dt, W, H);
 
     // draw
     ctx.clearRect(0, 0, W, H);
-    drawStars();
+    if (stars2D) drawStars();
     if (current && current.render) current.render(ctx, W, H);
     drawParticles();
     drawPopups();
@@ -259,6 +265,6 @@ CTQ.engine = (function () {
     resize, initStars,
     burst, popup,
     setScene, start,
-    roundRect, confetti, setWarp,
+    roundRect, confetti, setWarp, setStarfield2D,
   };
 })();

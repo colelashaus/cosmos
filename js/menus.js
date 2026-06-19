@@ -33,6 +33,8 @@ CTQ.menus = (function () {
     }));
   }
   function drawDrifters(ctx, list) {
+    // The 3D layer already shows planets behind everything — skip the 2D ones.
+    if (CTQ.three && CTQ.three.enabled) return;
     for (const d of list) {
       d.x += d.vx * 0.016;
       d.y += d.vy * 0.016;
