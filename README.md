@@ -20,7 +20,10 @@ Made for three kids (ages 4, 7, and 9) — but great for any beginning reader.
    | 🛰️ **Hard** | ages 9+ | Type **long words & phrases** (`ASTEROID`, `BLAST OFF`) |
 3. **Choose a mission:**
    - ☄️ **Asteroid Defense** — type the words on falling asteroids to blast them.
-   - 🚀 **Rocket Fuel** — type words to fuel your rocket and fly to a real NASA planet.
+     Every **5-streak** drops a 💣 **NUKE** — type it to clear the whole screen!
+   - 🚀 **Rocket Fuel** — type words to fuel your rocket, then enjoy a cinematic
+     **3-2-1 blast-off** (countdown, sprite exhaust & smoke, shockwaves, warp-speed
+     stars) as you fly to a real NASA planet.
    - 🌟 **Star Rescue** — type the words on floating stars to beam them aboard.
 
 You have a row of ❤️ **lives** — typing the wrong letter too many times ends the

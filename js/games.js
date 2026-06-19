@@ -139,6 +139,8 @@ CTQ.games = (function () {
     let lastText = null;
     let shake = 0;
     let groundFlash = 0;
+    let nukeFlash = 0;
+    let clock = 0;
     let lives = cfg.lives;
     let over = false;
 
@@ -180,6 +182,7 @@ CTQ.games = (function () {
     }
 
     function destroy(t) {
+      if (t.nuke) { nukeAll(t); return; }
       t.dead = true;
       const pts = (cfg.key === "easy" ? 5 : cfg.key === "medium" ? 10 : 15);
       score += pts;
@@ -196,7 +199,53 @@ CTQ.games = (function () {
       }
       // Reinforce spelling: speak the word on success (medium/hard).
       if (cfg.key !== "easy") A.speak(t.speak);
-      if (streak > 0 && streak % 5 === 0) { A.sfx.fanfare(); E.popup(E.W / 2, E.H / 2, "Streak " + streak + "! 🎉", "#ffe45a"); }
+      // Every 5-streak: drop a NUKE in Asteroid Defense, cheer otherwise.
+      if (streak > 0 && streak % 5 === 0) {
+        A.sfx.fanfare();
+        if (descend && !targets.some((x) => x.nuke && !x.dead)) {
+          spawnNuke();
+          E.popup(E.W / 2, E.H * 0.4, "💣 NUKE incoming — type it!", "#ff8a5a");
+        } else {
+          E.popup(E.W / 2, E.H / 2, "Streak " + streak + "! 🎉", "#ffe45a");
+        }
+      }
+      active = null;
+    }
+
+    // Special bonus target that, when typed, wipes every asteroid on screen.
+    function spawnNuke() {
+      const text = cfg.key === "easy"
+        ? "ABCDEFGHJKLMNPRSTUW"[Math.floor(Math.random() * 19)]
+        : "NUKE";
+      const t = {
+        text, emoji: null, speak: text, typed: 0,
+        rot: 0, rotV: rand(-0.3, 0.3),
+        size: Math.max(46, text.length * 9),
+        nuke: true, dead: false,
+        x: rand(140, E.W - 140), y: -50,
+        vx: rand(-6, 6), vy: cfg.fallSpeed * 0.8,
+      };
+      targets.push(t);
+      A.speak(cfg.key === "easy" ? text + ". Nuke!" : "Type nuke!");
+    }
+
+    function nukeAll(t) {
+      t.dead = true;
+      nukeFlash = 0.7;
+      A.sfx.explode(); A.sfx.fanfare();
+      A.speak("Boom!");
+      E.confetti(E.W / 2, E.H * 0.4, 130);
+      let cleared = 0;
+      for (const x of targets) {
+        if (x === t || x.dead) continue;
+        E.burst(x.x, x.y, "#ffb05a", 18, 240);
+        x.dead = true;
+        cleared++;
+      }
+      const bonus = 25 + cleared * 5;
+      score += bonus;
+      best = Math.max(best, streak);
+      E.popup(E.W / 2, E.H / 2, "💥 NUKE! +" + bonus + " 💥", "#ffe45a");
       active = null;
     }
 
@@ -250,8 +299,10 @@ CTQ.games = (function () {
       exit() { CTQ.state.typing = false; },
       onKey,
       update(dt) {
+        clock += dt;
         if (shake > 0) shake = Math.max(0, shake - dt);
         if (groundFlash > 0) groundFlash = Math.max(0, groundFlash - dt);
+        if (nukeFlash > 0) nukeFlash = Math.max(0, nukeFlash - dt * 1.6);
 
         spawnT -= dt;
         const alive = targets.filter((t) => !t.dead);
@@ -309,7 +360,12 @@ CTQ.games = (function () {
 
         for (const t of targets) {
           if (t.dead) continue;
-          if (!t.emoji) {
+          if (t.nuke) {
+            ctx.save();
+            ctx.translate(t.x, t.y);
+            drawNukeBody(ctx, t.size, t === active, clock);
+            ctx.restore();
+          } else if (!t.emoji) {
             // draw rock / star body
             ctx.save();
             ctx.translate(t.x, t.y);
@@ -330,6 +386,12 @@ CTQ.games = (function () {
         }
 
         ctx.restore();
+
+        if (nukeFlash > 0) {
+          ctx.fillStyle = "rgba(255,255,255," + Math.min(0.85, nukeFlash) + ")";
+          ctx.fillRect(0, 0, E.W, E.H);
+        }
+
         drawHUD(ctx, { title, diff: cfg.label, score, extra: "Streak " + streak + " • Best " + best, lives, maxLives: cfg.lives });
         drawBackHint(ctx);
 
@@ -363,6 +425,33 @@ CTQ.games = (function () {
     ctx.stroke();
   }
 
+  function drawNukeBody(ctx, size, isActive, clock) {
+    const pulse = 0.6 + 0.4 * Math.sin(clock * 8);
+    // danger glow
+    const g = ctx.createRadialGradient(0, 0, size * 0.4, 0, 0, size * 1.7);
+    g.addColorStop(0, "rgba(255,90,60," + (0.55 * pulse) + ")");
+    g.addColorStop(1, "rgba(255,0,0,0)");
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(0, 0, size * 1.7, 0, Math.PI * 2); ctx.fill();
+    // bomb body
+    const bg = ctx.createRadialGradient(-size * 0.3, -size * 0.3, size * 0.2, 0, 0, size);
+    bg.addColorStop(0, "#5b5b66");
+    bg.addColorStop(1, "#0e0e16");
+    ctx.fillStyle = bg;
+    ctx.beginPath(); ctx.arc(0, 0, size, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = isActive ? "#5ad7ff" : "#ff5a5a";
+    ctx.lineWidth = isActive ? 5 : 3;
+    ctx.stroke();
+    // fuse + spark
+    ctx.strokeStyle = "#c9b08a"; ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(0, -size);
+    ctx.quadraticCurveTo(size * 0.5, -size * 1.35, size * 0.25, -size * 1.55);
+    ctx.stroke();
+    ctx.fillStyle = "#ffd35a";
+    ctx.beginPath(); ctx.arc(size * 0.25, -size * 1.55, 3 + 3 * pulse, 0, Math.PI * 2); ctx.fill();
+  }
+
   function drawStarBody(ctx, size, isActive) {
     const spikes = 5, outer = size, inner = size * 0.45;
     ctx.beginPath();
@@ -389,43 +478,75 @@ CTQ.games = (function () {
   function createFuelGame(diffKey, onBack, onDead) {
     const cfg = D.DIFFICULTY[diffKey];
     const pool = D.getPool(cfg.pool);
+    const COUNTDOWN_DUR = 3;
 
     let word = null, typed = 0, lastText = null;
     let fuel = 0;
     let score = 0, planetsVisited = 0, planetIdx = 0;
-    let state = "type";          // "type" | "launch" | "arrive"
-    let stateT = 0;
-    let rocketY = 0;
-    let shake = 0;
-    let t = 0;
+    let state = "type";          // "type" | "countdown" | "liftoff" | "arrive"
+    let stateT = 0, t = 0;
+    let rocketY = 0, rocketVy = 0;
+    let countdownNum = 0;
+    let warp = 0, rumble = 0;
     let lives = cfg.lives;
     let over = false;
 
+    // sprite-based particle engines (built in enter())
+    let exhaust = null, smokeEm = null, sparks = null;
+    let rings = [];
+
+    // rocket scale + its resting CENTER y on the pad (drawRocket draws centered)
+    function rocketScale() { return Math.max(0.85, Math.min(1.5, Math.min(E.W, E.H) / 620)); }
+    function baseLine() { return E.H * 0.70; }
+    function nozzle() {
+      const s = rocketScale();
+      return { x: E.W / 2, y: baseLine() + rocketY + 85 * s, s };
+    }
+
     function nextWord() {
-      let it;
-      let guard = 0;
+      let it, guard = 0;
       do { it = pool[Math.floor(Math.random() * pool.length)]; } while (lastText && it.text === lastText && guard++ < 6);
       lastText = it.text;
       word = it; typed = 0;
       if (cfg.speakOnSpawn) A.speak(it.speak);
     }
 
-    function launch() {
-      state = "launch"; stateT = 0; rocketY = 0;
-      A.sfx.launch();
+    function startCountdown() {
+      state = "countdown"; stateT = 0; countdownNum = 99;
+      A.speak("Get ready!");
+    }
+
+    function ignite() {
+      const n = nozzle();
+      state = "liftoff"; stateT = 0; rocketVy = 130;
+      A.sfx.launch(); A.speak("Blast off!");
+      for (let i = 0; i < 3; i++) rings.push({ x: n.x, y: n.y, r: 18 + i * 28, vr: 520, life: 1 });
+      for (let i = 0; i < 32; i++) sparks.spawn({ x: n.x, y: n.y, vx: rand(-340, 340), vy: rand(-100, 320), size: rand(8, 18), decay: rand(1.6, 2.6), grav: 180, drag: 0.93 });
+      for (let i = 0; i < 16; i++) smokeEm.spawn({ x: n.x + rand(-40, 40), y: n.y, vx: rand(-180, 180), vy: rand(-20, 70), size: rand(50, 100) * n.s, grow: 80, decay: rand(0.5, 1), drag: 0.96 });
+    }
+
+    function emitExhaust(intensity, n) {
+      const cnt = Math.round(intensity * 7);
+      for (let i = 0; i < cnt; i++) {
+        exhaust.spawn({
+          x: n.x + rand(-9, 9) * n.s, y: n.y,
+          vx: rand(-70, 70), vy: rand(140, 320) * intensity + 90,
+          size: rand(20, 48) * n.s, decay: rand(2.2, 3.4), grav: 50, drag: 0.95,
+        });
+      }
+      if (Math.random() < 0.6 * intensity) {
+        smokeEm.spawn({ x: n.x + rand(-22, 22) * n.s, y: n.y + rand(0, 18), vx: rand(-60, 60), vy: rand(40, 130), size: rand(40, 80) * n.s, grow: 60, decay: rand(0.7, 1.3), grav: -8, drag: 0.97 });
+      }
+      if (Math.random() < 0.4 * intensity) {
+        sparks.spawn({ x: n.x, y: n.y, vx: rand(-220, 220), vy: rand(60, 280), size: rand(8, 16), decay: rand(2, 3), grav: 140, drag: 0.94 });
+      }
     }
 
     function loseLife() {
       if (over) return;
-      lives--;
-      shake = 0.3;
+      lives--; rumble = 6;
       A.sfx.hurt();
-      if (lives <= 0) {
-        lives = 0;
-        over = true;
-        A.sfx.gameover();
-        if (onDead) onDead(score);
-      }
+      if (lives <= 0) { lives = 0; over = true; A.sfx.gameover(); if (onDead) onDead(score); }
     }
 
     function onKey(e) {
@@ -437,16 +558,15 @@ CTQ.games = (function () {
       if (key === expected) {
         typed++;
         A.sfx.zap();
-        E.burst(E.W / 2, E.H - 120, "#ffd35a", 4, 120);
+        E.burst(E.W / 2, E.H - 220, "#ffd35a", 4, 120);
         if (typed >= word.text.length) {
-          // word complete -> add fuel
           fuel++;
           score += (cfg.key === "easy" ? 5 : cfg.key === "medium" ? 10 : 15);
           A.sfx.success();
-          E.confetti(E.W / 2, E.H - 200);   // big confetti on every word!
+          E.confetti(E.W / 2, consoleTop() + 36);   // big confetti on every word!
           if (cfg.key !== "easy") A.speak(word.speak);
-          E.popup(E.W / 2, E.H - 160, "Fuel +1 ⛽", "#5bff9b");
-          if (fuel >= cfg.fuelGoal) launch();
+          E.popup(E.W / 2, consoleTop() - 16, "Fuel +1 ⛽", "#5bff9b");
+          if (fuel >= cfg.fuelGoal) startCountdown();
           else nextWord();
         }
       } else {
@@ -454,97 +574,159 @@ CTQ.games = (function () {
       }
     }
 
+    // Vertical anchor for the on-screen word console (upper-middle).
+    function consoleTop() { return E.H * 0.40; }
+
     return {
       enter() {
+        CTQ.sprites.init();
+        exhaust = new CTQ.sprites.Emitter("flame");
+        smokeEm = new CTQ.sprites.Emitter("smoke");
+        sparks = new CTQ.sprites.Emitter("spark");
+        rings = [];
         fuel = 0; score = 0; planetsVisited = 0; planetIdx = 0;
-        state = "type"; stateT = 0;
+        state = "type"; stateT = 0; rocketY = 0; rocketVy = 0;
+        warp = 0; rumble = 0;
         lives = cfg.lives; over = false;
         CTQ.state.typing = true;
+        E.setWarp(0);
         nextWord();
       },
-      exit() { CTQ.state.typing = false; },
+      exit() { CTQ.state.typing = false; E.setWarp(0); },
       onKey,
       update(dt) {
         t += dt;
-        if (shake > 0) shake = Math.max(0, shake - dt);
-        if (state === "launch") {
+        if (rumble > 0) rumble = Math.max(0, rumble - dt * 14);
+        exhaust.update(dt); smokeEm.update(dt); sparks.update(dt);
+        for (let i = rings.length - 1; i >= 0; i--) {
+          const r = rings[i]; r.r += r.vr * dt; r.life -= dt * 1.2;
+          if (r.life <= 0) rings.splice(i, 1);
+        }
+
+        const n = nozzle();
+        if (state === "countdown") {
           stateT += dt;
-          rocketY -= (120 + stateT * 220) * dt;
-          if (Math.random() < 0.7) E.burst(E.W / 2, E.H - 120 - rocketY + 30, "#ff9a3a", 2, 120);
-          if (rocketY < -E.H) {
-            // arrived at a new planet
+          const remaining = COUNTDOWN_DUR - stateT;
+          const num = Math.ceil(remaining);
+          if (num !== countdownNum && num > 0) { countdownNum = num; A.sfx.select(); A.speak(String(num)); }
+          rumble = 2 + (stateT / COUNTDOWN_DUR) * 5;
+          emitExhaust(0.25 + (stateT / COUNTDOWN_DUR) * 0.45, n);
+          if (remaining <= 0) ignite();
+        } else if (state === "liftoff") {
+          stateT += dt;
+          rocketVy += 900 * dt;
+          rocketY -= rocketVy * dt;
+          warp = Math.min(1.2, warp + dt * 1.6); E.setWarp(warp);
+          rumble = 9 * Math.max(0, 1 - stateT * 0.7);
+          emitExhaust(1, n);
+          if (rocketY < -E.H * 0.7) {
             planetsVisited++;
             planetIdx = (planetIdx + 1) % D.PLANETS.length;
             A.sfx.fanfare();
+            A.speak("Welcome to " + D.PLANETS[planetIdx] + "!");
             state = "arrive"; stateT = 0;
           }
         } else if (state === "arrive") {
           stateT += dt;
-          if (stateT > 1.8) { fuel = 0; state = "type"; nextWord(); }
+          warp = Math.max(0, warp - dt * 2.2); E.setWarp(warp);
+          if (stateT > 2.0) { fuel = 0; rocketY = 0; rocketVy = 0; state = "type"; nextWord(); }
+        } else if (warp > 0) {
+          warp = Math.max(0, warp - dt * 3); E.setWarp(warp);
         }
       },
       render(ctx) {
         const W = E.W, H = E.H;
-        const ox = shake > 0 ? rand(-5, 5) : 0;
-
-        // destination planet (top center)
+        const ox = rumble > 0 ? rand(-rumble, rumble) : 0;
+        const oy = rumble > 0 ? rand(-rumble, rumble) : 0;
         const destKey = D.PLANETS[planetIdx];
+        const n = nozzle();
+
+        // destination planet (top center) — pulses on arrival
         const im = E.img(destKey);
-        const pr = Math.min(W, H) * 0.16;
-        const py = H * 0.24 + (state === "arrive" ? Math.sin(stateT * 2) * 6 : 0);
+        const arriveZoom = state === "arrive" ? 1 + Math.min(0.35, stateT * 0.25) : 1;
+        const pr = Math.min(W, H) * 0.13 * arriveZoom;
+        const py = H * 0.19 + (state === "arrive" ? Math.sin(stateT * 2) * 6 : 0);
         ctx.save();
-        ctx.beginPath();
-        ctx.arc(W / 2, py, pr, 0, Math.PI * 2);
-        ctx.clip();
+        ctx.beginPath(); ctx.arc(W / 2, py, pr, 0, Math.PI * 2); ctx.clip();
         if (im) ctx.drawImage(im, W / 2 - pr, py - pr, pr * 2, pr * 2);
-        else { ctx.fillStyle = "#7a5"; ctx.fill(); }
+        else { ctx.fillStyle = "#7a5"; ctx.fillRect(W / 2 - pr, py - pr, pr * 2, pr * 2); }
         ctx.restore();
-        ctx.beginPath();
-        ctx.arc(W / 2, py, pr, 0, Math.PI * 2);
-        ctx.strokeStyle = "rgba(90,215,255,0.4)";
-        ctx.lineWidth = 3; ctx.stroke();
-        ctx.textAlign = "center";
-        ctx.fillStyle = "#cfe6ff";
-        ctx.font = "800 18px " + FONT;
+        ctx.beginPath(); ctx.arc(W / 2, py, pr, 0, Math.PI * 2);
+        ctx.strokeStyle = "rgba(90,215,255,0.45)"; ctx.lineWidth = 3; ctx.stroke();
+        ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+        ctx.fillStyle = "#cfe6ff"; ctx.font = "800 18px " + FONT;
         ctx.fillText("Destination: " + destKey.toUpperCase(), W / 2, py + pr + 26);
 
-        // launch pad + rocket
-        const baseY = H - 90;
-        if (state !== "launch") {
+        // ground shockwave rings
+        for (const r of rings) {
+          ctx.globalAlpha = Math.max(0, r.life) * 0.5;
+          ctx.strokeStyle = "#ffd9a0"; ctx.lineWidth = 4;
+          ctx.beginPath(); ctx.arc(r.x + ox, r.y, r.r, 0, Math.PI * 2); ctx.stroke();
+          ctx.globalAlpha = 1;
+        }
+
+        // launch pad (hidden once airborne)
+        const baseY = baseLine();
+        if (state === "type" || state === "countdown") {
           ctx.fillStyle = "rgba(255,255,255,0.12)";
-          E.roundRect(ctx, W / 2 - 60, baseY + 18, 120, 12, 6); ctx.fill();
+          E.roundRect(ctx, W / 2 - 70 * n.s, baseY + rocketY + 96 * n.s, 140 * n.s, 12, 6); ctx.fill();
         }
-        CTQ.menus.drawRocket(ctx, W / 2 + ox, baseY + rocketY, 1.6, 0, t);
 
+        // smoke behind, rocket, then bright core flame + glowing exhaust/sparks
+        smokeEm.draw(ctx);
+        CTQ.sprites.drawRocket(ctx, W / 2 + ox, baseY + rocketY + oy, n.s, 0);
+        if (state === "countdown" || state === "liftoff") {
+          const fl = state === "liftoff" ? 1 : 0.4;
+          const len = (90 + 70 * fl) * n.s;
+          const fg = ctx.createLinearGradient(0, n.y, 0, n.y + len);
+          fg.addColorStop(0, "rgba(255,255,215,0.95)");
+          fg.addColorStop(0.5, "rgba(255,150,40,0.7)");
+          fg.addColorStop(1, "rgba(255,60,20,0)");
+          ctx.fillStyle = fg;
+          ctx.beginPath();
+          ctx.moveTo(n.x - 18 * n.s + ox, n.y); ctx.lineTo(n.x + 18 * n.s + ox, n.y);
+          ctx.lineTo(n.x + 6 * n.s + ox, n.y + len); ctx.lineTo(n.x - 6 * n.s + ox, n.y + len);
+          ctx.closePath(); ctx.fill();
+        }
+        exhaust.draw(ctx);
+        sparks.draw(ctx);
+
+        ctx.textAlign = "center";
         if (state === "type" && word) {
-          // word console
           const boxW = Math.min(W * 0.8, 560);
-          const bx = W / 2 - boxW / 2, by = H - 230;
+          const bx = W / 2 - boxW / 2, by = consoleTop();
           ctx.fillStyle = "rgba(5,3,15,0.6)";
-          E.roundRect(ctx, bx, by, boxW, 70, 16); ctx.fill();
-          ctx.strokeStyle = "rgba(90,215,255,0.5)";
-          ctx.lineWidth = 2; ctx.stroke();
-          drawLabel(ctx, { x: W / 2, y: by + 36, text: word.text, emoji: word.emoji, typed }, true);
-          if (word.emoji) { /* easy mode draws emoji+letter via drawLabel big */ }
-          ctx.fillStyle = "#9fb6dd";
-          ctx.font = "700 15px " + FONT;
+          E.roundRect(ctx, bx, by, boxW, 72, 16); ctx.fill();
+          ctx.strokeStyle = "rgba(90,215,255,0.5)"; ctx.lineWidth = 2; ctx.stroke();
+          drawLabel(ctx, { x: W / 2, y: by + 37, text: word.text, emoji: word.emoji, typed }, true);
+          ctx.fillStyle = "#9fb6dd"; ctx.font = "700 15px " + FONT; ctx.textBaseline = "alphabetic";
           ctx.fillText("Type it to add fuel!", W / 2, by - 12);
-        } else if (state === "arrive") {
+        } else if (state === "countdown") {
+          // number grows fresh then shrinks across its one-second slot
+          const within = countdownNum - (COUNTDOWN_DUR - stateT); // 0 → 1
           ctx.fillStyle = "#ffe45a";
-          ctx.font = "900 34px " + FONT;
-          ctx.fillText("🎉 Welcome to " + destKey.toUpperCase() + "! 🎉", W / 2, H * 0.6);
+          ctx.font = "900 " + Math.round(150 - within * 50) + "px " + FONT;
+          ctx.textBaseline = "middle";
+          ctx.fillText(String(countdownNum), W / 2, H * 0.5);
+          ctx.font = "800 26px " + FONT; ctx.fillStyle = "#fff";
+          ctx.fillText("🚀 LAUNCHING! 🚀", W / 2, H * 0.5 - 90);
+          ctx.textBaseline = "alphabetic";
+        } else if (state === "arrive") {
+          ctx.fillStyle = "#ffe45a"; ctx.font = "900 34px " + FONT;
+          ctx.fillText("🎉 Welcome to " + destKey.toUpperCase() + "! 🎉", W / 2, H * 0.62);
         }
 
-        // fuel gauge
-        const gw = Math.min(W * 0.7, 480), gx = W / 2 - gw / 2, gy = H - 50;
-        ctx.fillStyle = "rgba(255,255,255,0.12)";
-        E.roundRect(ctx, gx, gy, gw, 22, 11); ctx.fill();
-        const frac = Math.min(1, fuel / cfg.fuelGoal);
-        ctx.fillStyle = "#5bff9b";
-        if (frac > 0) { E.roundRect(ctx, gx, gy, gw * frac, 22, 11); ctx.fill(); }
-        ctx.fillStyle = "#fff";
-        ctx.font = "800 14px " + FONT;
-        ctx.fillText("⛽ FUEL  " + fuel + " / " + cfg.fuelGoal, W / 2, gy + 11);
+        // fuel gauge (during typing / countdown)
+        if (state === "type" || state === "countdown") {
+          const gw = Math.min(W * 0.7, 480), gx = W / 2 - gw / 2, gy = H - 50;
+          ctx.fillStyle = "rgba(255,255,255,0.12)";
+          E.roundRect(ctx, gx, gy, gw, 22, 11); ctx.fill();
+          const frac = Math.min(1, fuel / cfg.fuelGoal);
+          if (frac > 0) { ctx.fillStyle = "#5bff9b"; E.roundRect(ctx, gx, gy, gw * frac, 22, 11); ctx.fill(); }
+          ctx.fillStyle = "#fff"; ctx.font = "800 14px " + FONT; ctx.textBaseline = "middle";
+          ctx.fillText("⛽ FUEL  " + fuel + " / " + cfg.fuelGoal, W / 2, gy + 11);
+          ctx.textBaseline = "alphabetic";
+        }
 
         drawHUD(ctx, { title: "Rocket Fuel 🚀", diff: cfg.label, score, extra: "Planets visited: " + planetsVisited, lives, maxLives: cfg.lives });
         drawBackHint(ctx);

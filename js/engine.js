@@ -46,6 +46,8 @@ CTQ.engine = (function () {
 
   // ---------- Starfield (always-on background) ----------
   let stars = [];
+  let warp = 0;                 // 0 = calm; ramps up for warp-speed launches
+  function setWarp(v) { warp = Math.max(0, v || 0); }
   function initStars() {
     stars = [];
     const n = Math.round((W * H) / 6000);
@@ -59,13 +61,30 @@ CTQ.engine = (function () {
     }
   }
   function updateStars(dt) {
+    const speed = 18 + warp * 1400;       // stars rush downward during warp
     for (const s of stars) {
-      s.y += s.z * 18 * dt;
+      s.y += s.z * speed * dt;
       s.tw += dt * 3;
       if (s.y > H) { s.y = 0; s.x = Math.random() * W; }
     }
   }
   function drawStars() {
+    if (warp > 0.04) {
+      // streak the stars into warp lines
+      ctx.strokeStyle = "#cfeaff";
+      ctx.lineCap = "round";
+      for (const s of stars) {
+        const len = (12 + warp * 90) * s.z;
+        ctx.globalAlpha = Math.min(1, 0.35 + warp) * s.z;
+        ctx.lineWidth = s.z * 2;
+        ctx.beginPath();
+        ctx.moveTo(s.x, s.y - len);
+        ctx.lineTo(s.x, s.y);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+      return;
+    }
     for (const s of stars) {
       const a = 0.5 + 0.5 * Math.sin(s.tw);
       ctx.globalAlpha = a * s.z;
@@ -240,6 +259,6 @@ CTQ.engine = (function () {
     resize, initStars,
     burst, popup,
     setScene, start,
-    roundRect, confetti,
+    roundRect, confetti, setWarp,
   };
 })();
