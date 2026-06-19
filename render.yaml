@@ -1,0 +1,17 @@
+# Render.com deployment config — static site (no server, free tier).
+# Render auto-detects this file when you create a "Blueprint" from the repo.
+services:
+  - type: web
+    name: cosmic-typing-quest
+    runtime: static
+    # No build step needed — the site is plain HTML/CSS/JS.
+    buildCommand: ""
+    staticPublishPath: .
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: public, max-age=3600
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
