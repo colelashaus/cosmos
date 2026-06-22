@@ -17,6 +17,9 @@
     <div id="ui"></div>
 
     <div id="rotate-hint">Please rotate your device to landscape 🚀</div>
+
+    <!-- shows which renderer is active: WebGPU / WebGL2 / 2D -->
+    <div id="gpu-badge">2D</div>
   </div>
 
   <!-- Scripts load in order; everything hangs off the global CTQ namespace -->
@@ -33,6 +36,6 @@
   <script type="importmap">
     { "imports": { "three": "./js/vendor/three-wgpu/three.webgpu.min.js" } }
   </script>
-  <script type="module" src="js/three3d.js?v=4"></script>
+  <script type="module" src="js/three3d.js?v=7"></script>
 </body>
 </html>

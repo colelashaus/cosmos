@@ -175,6 +175,24 @@ html, body {
 }
 .back-link:hover { background: rgba(255,255,255,0.2); }
 
+#gpu-badge {
+  position: absolute;
+  bottom: 10px;
+  right: 12px;
+  z-index: 5;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: #aee3ff;
+  background: rgba(5, 3, 15, 0.45);
+  border: 1px solid rgba(120, 200, 255, 0.25);
+  border-radius: 20px;
+  padding: 3px 11px;
+  font-family: var(--font);
+  pointer-events: none;
+  opacity: 0.8;
+}
+
 #rotate-hint {
   display: none;
   position: absolute;

@@ -10,7 +10,7 @@
      setWarp(level), launchRocket()
    ============================================================ */
 import * as THREE from "three";
-import { pass, bloom, PostProcessing } from "three";
+import { pass, bloom, PostProcessing, uniform, Fn, screenUV, vec2, float } from "three";
 
 window.CTQ = window.CTQ || {};
 
@@ -31,6 +31,8 @@ CTQ.three = (function () {
   let planets = {}, ambient = [], station = null, asteroids = [], rocket3D = null;
   let rocketFly = 0, rocketFlying = false;
   let hero = null, heroKey = "earth";
+  let nebulae = [];
+  let uLensPos = null, uLensStr = null, uAspect = null;
   let warp = 0, warpTarget = 0, mode = "menu", t = 0, lastW = 0, lastH = 0;
   const texCache = {};
 
@@ -75,6 +77,23 @@ CTQ.three = (function () {
     g.fillStyle = grad; g.fillRect(0, 0, w, h); return new THREE.CanvasTexture(c);
   }
 
+  // radial "god ray" starburst — many soft spokes from the centre
+  function raysTexture() {
+    const S = 512, c = document.createElement("canvas"); c.width = c.height = S;
+    const g = c.getContext("2d"); g.translate(S / 2, S / 2);
+    const rng = (n) => ((Math.sin(n * 12.9898) * 43758.5453) % 1 + 1) % 1; // deterministic
+    for (let i = 0; i < 140; i++) {
+      const a = (i / 140) * Math.PI * 2 + rng(i) * 0.1;
+      const len = S * (0.28 + rng(i + 7) * 0.22);
+      const wdt = 0.004 + rng(i + 3) * 0.012;
+      const grad = g.createLinearGradient(0, 0, Math.cos(a) * len, Math.sin(a) * len);
+      grad.addColorStop(0, "rgba(255,235,170,0.5)"); grad.addColorStop(1, "rgba(255,180,80,0)");
+      g.strokeStyle = grad; g.lineWidth = S * wdt;
+      g.beginPath(); g.moveTo(0, 0); g.lineTo(Math.cos(a) * len, Math.sin(a) * len); g.stroke();
+    }
+    return new THREE.CanvasTexture(c);
+  }
+
   function buildPlanet(key) {
     const group = new THREE.Group();
     const isSun = key === "sun";
@@ -96,7 +115,10 @@ CTQ.three = (function () {
     } else if (key === "jupiter") {
       const ring = ringMesh(R * 1.28, R * 1.62, tex("saturnRing", true), { opacity: 0.22 }); ring.rotation.x = Math.PI / 2; group.add(ring); group.rotation.z = 0.05;
     } else if (isSun) {
-      group.add(glowSprite("rgba(255,200,90,1)", R * 5)); data.spin = 0.03;
+      group.add(glowSprite("rgba(255,200,90,1)", R * 4.5));
+      const rays = new THREE.Sprite(new THREE.SpriteNodeMaterial({ map: raysTexture(), blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, opacity: 0.7 }));
+      rays.scale.setScalar(R * 9); group.add(rays); data.rays = rays;
+      data.spin = 0.03;
     }
     group.visible = false; scene.add(group); return data;
   }
@@ -154,15 +176,62 @@ CTQ.three = (function () {
     return arr;
   }
 
-  function buildRocket3D() {
+  // A detailed year-3167 starship (Star Trek-inspired: saucer + engineering
+  // hull + warp nacelles, with glowing deflector, bussard collectors, warp
+  // grilles and running lights). Built facing -Z so lookAt() aims it forward.
+  function buildStarship() {
     const g = new THREE.Group();
-    const white = new THREE.MeshStandardNodeMaterial({ color: 0xeef3ff, roughness: 0.5, metalness: 0.3 });
-    const red = new THREE.MeshStandardNodeMaterial({ color: 0xff5a4a, roughness: 0.5, metalness: 0.2 });
-    g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.72, 3, 20), white));
-    const nose = new THREE.Mesh(new THREE.ConeGeometry(0.6, 1.2, 20), red); nose.position.y = 2.1; g.add(nose);
-    for (let i = 0; i < 3; i++) { const a = i * Math.PI * 2 / 3; const fin = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.9, 0.7), red); fin.position.set(Math.cos(a) * 0.6, -1.4, Math.sin(a) * 0.6); fin.rotation.y = -a; g.add(fin); }
-    g.add(glowSprite("rgba(255,180,80,1)", 3.2)).position.y = -2.1;
-    g.visible = false; g.scale.setScalar(1.4); scene.add(g); return g;
+    const hull = new THREE.MeshStandardNodeMaterial({ color: 0xd2dae8, roughness: 0.32, metalness: 0.75 });
+    const hullDark = new THREE.MeshStandardNodeMaterial({ color: 0x9aa6bc, roughness: 0.4, metalness: 0.7 });
+    const glowBlue = new THREE.MeshStandardNodeMaterial({ color: 0x0a2740, emissive: 0x3aa6ff, emissiveIntensity: 2.6, roughness: 0.4, metalness: 0.2 });
+    const glowWarp = new THREE.MeshStandardNodeMaterial({ color: 0x0a1840, emissive: 0x5e8bff, emissiveIntensity: 3.0, roughness: 0.5 });
+    const glowAmber = new THREE.MeshStandardNodeMaterial({ color: 0x3a1e00, emissive: 0xffae3a, emissiveIntensity: 3.0 });
+    const glowRed = new THREE.MeshStandardNodeMaterial({ color: 0x3a0a06, emissive: 0xff4422, emissiveIntensity: 3.0 });
+
+    // --- saucer (primary hull) at front (-Z) ---
+    const saucer = new THREE.Mesh(new THREE.CylinderGeometry(2.4, 2.4, 0.42, 64), hull);
+    saucer.scale.set(1, 1, 1); saucer.rotation.x = Math.PI / 2; saucer.position.z = -2.2; g.add(saucer);
+    const saucerEdge = new THREE.Mesh(new THREE.TorusGeometry(2.4, 0.12, 12, 64), glowBlue);
+    saucerEdge.position.z = -2.2; g.add(saucerEdge);
+    const bridge = new THREE.Mesh(new THREE.SphereGeometry(0.7, 24, 16, 0, Math.PI * 2, 0, Math.PI / 2), hull);
+    bridge.position.set(0, 0.28, -2.2); g.add(bridge);
+
+    // --- neck ---
+    const neck = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.5, 2.2), hullDark);
+    neck.position.set(0, -0.15, -1.0); neck.rotation.x = 0.25; g.add(neck);
+
+    // --- engineering hull (secondary) along Z ---
+    const eng = new THREE.Mesh(new THREE.CapsuleGeometry(0.85, 2.4, 8, 20), hull);
+    eng.rotation.x = Math.PI / 2; eng.position.set(0, -0.45, 0.9); g.add(eng);
+    // deflector dish at the front of the engineering hull
+    const dish = new THREE.Mesh(new THREE.CircleGeometry(0.62, 32), glowAmber);
+    dish.position.set(0, -0.45, -0.55); g.add(dish);
+
+    // --- warp nacelles + pylons ---
+    [-1, 1].forEach((s) => {
+      const pylon = new THREE.Mesh(new THREE.BoxGeometry(0.22, 1.5, 1.0), hullDark);
+      pylon.position.set(s * 1.0, 0.2, 1.4); pylon.rotation.z = s * 0.5; g.add(pylon);
+      const nacelle = new THREE.Mesh(new THREE.CapsuleGeometry(0.34, 2.6, 8, 18), hull);
+      nacelle.rotation.x = Math.PI / 2; nacelle.position.set(s * 1.9, 0.95, 1.2); g.add(nacelle);
+      // bussard collector (glowing red) at the front
+      const bussard = new THREE.Mesh(new THREE.SphereGeometry(0.36, 20, 16), glowRed);
+      bussard.position.set(s * 1.9, 0.95, -0.35); g.add(bussard);
+      // warp grille (glowing blue strip) along the nacelle
+      const grille = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.18, 2.2), glowWarp);
+      grille.position.set(s * (1.9 - 0.32), 0.95, 1.3); g.add(grille);
+      const grille2 = grille.clone(); grille2.position.x = s * (1.9 + 0.32); g.add(grille2);
+      // rear warp glow
+      const trail = glowSprite("rgba(120,170,255,1)", 1.5); trail.position.set(s * 1.9, 0.95, 2.6); g.add(trail);
+    });
+
+    // running lights along the saucer
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * Math.PI * 2;
+      const lite = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 8), glowBlue);
+      lite.position.set(Math.cos(a) * 2.35, 0.06, -2.2 + Math.sin(a) * 2.35); g.add(lite);
+    }
+
+    g.visible = false; g.scale.setScalar(0.9); scene.add(g); return g;
   }
 
   function buildStars() {
@@ -171,6 +240,65 @@ CTQ.three = (function () {
     starGeo.setAttribute("position", new THREE.BufferAttribute(starPos, 3));
     stars = new THREE.Points(starGeo, new THREE.PointsNodeMaterial({ color: 0xcfe6ff, size: 1.3, sizeAttenuation: true, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending }));
     scene.add(stars);
+  }
+
+  // GPU-particle nebula clouds (additive coloured point blobs, far away)
+  function buildNebulae() {
+    const defs = [
+      { c: 0xff4fa3, p: [-200, 90, -420], s: 130, n: 420 },
+      { c: 0x4fd0ff, p: [220, -70, -460], s: 150, n: 460 },
+      { c: 0x9b6bff, p: [70, 150, -520], s: 140, n: 420 },
+    ];
+    const arr = [];
+    for (const d of defs) {
+      const geo = new THREE.BufferGeometry(), pos = new Float32Array(d.n * 3);
+      for (let i = 0; i < d.n; i++) {
+        const r = Math.pow(Math.random(), 2) * d.s, th = Math.random() * Math.PI * 2, ph = Math.acos(Math.random() * 2 - 1);
+        pos[i * 3] = d.p[0] + r * Math.sin(ph) * Math.cos(th);
+        pos[i * 3 + 1] = d.p[1] + r * Math.sin(ph) * Math.sin(th);
+        pos[i * 3 + 2] = d.p[2] + r * Math.cos(ph);
+      }
+      geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+      const m = new THREE.Points(geo, new THREE.PointsNodeMaterial({ color: d.c, size: 7, sizeAttenuation: true, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false }));
+      m.userData.spin = (Math.random() - 0.5) * 0.02;
+      scene.add(m); arr.push(m);
+    }
+    return arr;
+  }
+
+  // Post-processing chain. withLensing adds a screen-space gravitational lens
+  // (used only around the black hole). Falls back to bloom-only if TSL sampling
+  // isn't supported on the active backend.
+  function buildPost(withLensing) {
+    post = new PostProcessing(renderer);
+    const scenePass = pass(scene, camera);
+    let colorNode = scenePass.getTextureNode();
+    if (withLensing) {
+      uLensPos = uniform(new THREE.Vector2(0.5, 0.5));
+      uLensStr = uniform(0);
+      uAspect = uniform(1);
+      const lp = uLensPos, ls = uLensStr, asp = uAspect, src = colorNode;
+      colorNode = Fn(() => {
+        const uv = screenUV;
+        const d = uv.sub(lp);
+        const dc = vec2(d.x.mul(asp), d.y);
+        const dist = dc.length().max(float(0.0001));
+        const strength = ls.div(dist.mul(dist).add(float(0.004))).min(float(0.4));
+        const dir = dc.div(dist);
+        const off = vec2(dir.x.div(asp), dir.y).mul(strength);
+        return src.uv(uv.sub(off));
+      })();
+    } else {
+      uLensPos = uLensStr = uAspect = null;
+    }
+    post.outputNode = colorNode.add(bloom(colorNode, 0.95, 0.5, 0.68));
+  }
+
+  async function setupPost() {
+    for (const lz of [true, false]) {
+      try { buildPost(lz); await post.renderAsync(); return; }
+      catch (e) { post = null; uLensPos = uLensStr = uAspect = null; }
+    }
   }
 
   async function init() {
@@ -199,24 +327,21 @@ CTQ.three = (function () {
       const b = simplePlanet("neptune", 5); b.position.set(64, -26, -120); scene.add(b); ambient.push(b);
       station = buildStation(); station.scale.setScalar(1.5); station.position.set(78, 44, -210);
       asteroids = buildAsteroids(8);
-      rocket3D = buildRocket3D();
+      nebulae = buildNebulae();
+      rocket3D = buildStarship();
 
       resize();
       setScene("menu");
 
-      // bloom post-processing (guarded)
-      try {
-        post = new PostProcessing(renderer);
-        const scenePass = pass(scene, camera);
-        const color = scenePass.getTextureNode();
-        post.outputNode = color.add(bloom(color, 0.9, 0.5, 0.7));
-      } catch (e) { post = null; }
-
-      // verified-render gate: confirm we can actually draw before dropping 2D stars
+      // post-processing (lensing + bloom), with verified-render fallback ladder
+      await setupPost();
       try { await (post ? post.renderAsync() : renderer.renderAsync(scene, camera)); }
       catch (e) { post = null; await renderer.renderAsync(scene, camera); }
 
       api.enabled = true;
+      const label = (renderer.backend && renderer.backend.isWebGPUBackend) ? "WebGPU" : "WebGL2";
+      const badge = document.getElementById("gpu-badge");
+      if (badge) badge.textContent = "⚡ " + label;
       if (CTQ.engine && CTQ.engine.setStarfield2D) CTQ.engine.setStarfield2D(false);
       return true;
     } catch (e) {
@@ -245,7 +370,7 @@ CTQ.three = (function () {
     heroKey = key; hero = getPlanet(key); hero.group.visible = true; applyHeroTransform();
   }
   function setWarp(level) { warpTarget = Math.max(0, level || 0); }
-  function launchRocket() { if (!api.enabled || !rocket3D) return; rocketFly = 0; rocketFlying = true; rocket3D.visible = true; rocket3D.scale.setScalar(1.4); }
+  function launchRocket() { if (!api.enabled || !rocket3D) return; rocketFly = 0; rocketFlying = true; rocket3D.visible = true; rocket3D.scale.setScalar(0.9); }
 
   function renderFrame() {
     if (busy) return; busy = true;
@@ -260,16 +385,24 @@ CTQ.three = (function () {
     warp += (warpTarget - warp) * Math.min(1, dt * 6);
 
     if (skybox) skybox.rotation.y += dt * 0.005;
-    if (hero) { hero.group.rotation.y += hero.spin * dt; if (hero.clouds) hero.clouds.rotation.y += hero.spin * 0.4 * dt; if (hero.disk) hero.disk.rotation.z += dt * 0.7; }
+    if (hero) {
+      hero.group.rotation.y += hero.spin * dt;
+      if (hero.clouds) hero.clouds.rotation.y += hero.spin * 0.4 * dt;
+      if (hero.disk) hero.disk.rotation.z += dt * 0.7;
+      if (hero.rays) hero.rays.material.rotation += dt * 0.05;   // sun god-rays
+    }
     for (const p of ambient) p.rotation.y += p.userData.spin * dt;
+    for (const nb of nebulae) nb.rotation.y += nb.userData.spin * dt;
     if (station) { station.userData.wheel.rotation.z += dt * 0.4; station.rotation.y += dt * 0.05; }
     for (const a of asteroids) { a.rotation.x += a.userData.rx * dt; a.rotation.y += a.userData.ry * dt; a.position.x += a.userData.dx * dt; if (a.position.x > 150) a.position.x = -150; else if (a.position.x < -150) a.position.x = 150; }
 
     if (rocketFlying && rocket3D) {
-      rocketFly += dt; const dur = 2.6, u = Math.min(1, rocketFly / dur), e = u * u * (3 - 2 * u);
+      rocketFly += dt; const dur = 2.8, u = Math.min(1, rocketFly / dur), e = u * u * (3 - 2 * u);
       const tx = hero ? hero.group.position.x : 0, ty = hero ? hero.group.position.y : 20, tz = hero ? hero.group.position.z : -8;
-      rocket3D.position.set((tx * 0.7) * e, -30 + (ty * 0.7 + 6 + 30) * e, 28 + (tz + 8 - 28) * e);
-      rocket3D.rotation.y += dt * 3; rocket3D.scale.setScalar(1.4 * (1 - 0.6 * e));
+      rocket3D.position.set((tx * 0.7) * e, -28 + (ty * 0.7 + 6 + 28) * e, 30 + (tz + 8 - 30) * e);
+      if (hero) rocket3D.lookAt(hero.group.position);        // face the destination
+      rocket3D.rotateZ(Math.sin(rocketFly * 1.5) * 0.22);    // gentle bank
+      rocket3D.scale.setScalar(0.9 * (1 - 0.55 * e));
       if (u >= 1) { rocketFlying = false; rocket3D.visible = false; }
     }
 
@@ -279,11 +412,24 @@ CTQ.three = (function () {
     stars.material.size = 1.3 + warp * 3.5; stars.material.opacity = Math.min(1, 0.55 + warp);
     if (warpTarget > 0.02 && hero) hero.group.position.z -= warp * 70 * dt;
 
+    // drive the gravitational lens onto the black hole's screen position
+    if (uLensStr) {
+      if (heroKey === "blackhole" && hero && hero.group.visible) {
+        const v = hero.group.position.clone().project(camera);
+        uLensPos.value.set(v.x * 0.5 + 0.5, v.y * 0.5 + 0.5);
+        uLensStr.value = 0.014; uAspect.value = camera.aspect;
+      } else { uLensStr.value = 0; }
+    }
+
     renderFrame();
   }
 
   api.init = init; api.update = update; api.setScene = setScene; api.setDestination = setDestination; api.setWarp = setWarp; api.launchRocket = launchRocket;
-  api._dbg = function () { return { bloom: !!post, isWebGPU: !!(renderer && renderer.backend && renderer.backend.isWebGPUBackend), info: renderer ? renderer.info : null }; };
+  api._dbg = function () {
+    const types = {};
+    if (scene) scene.traverse((o) => { if (o.material) { const m = Array.isArray(o.material) ? o.material[0] : o.material; types[m.type] = (types[m.type] || 0) + 1; } });
+    return { bloom: !!post, lens: !!uLensStr, isWebGPU: !!(renderer && renderer.backend && renderer.backend.isWebGPUBackend), calls: renderer ? renderer.info.render.calls : null, tris: renderer ? renderer.info.render.triangles : null, matTypes: types };
+  };
   return api;
 })();
 

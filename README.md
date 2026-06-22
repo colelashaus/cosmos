@@ -14,11 +14,16 @@ planets from equirectangular maps — **Earth with drifting clouds and an
 atmospheric glow, Saturn and Jupiter with rings, a blazing Sun** — against a
 **Milky Way skybox**, with ACES tone mapping and **Unreal-bloom** post-processing.
 It's packed with extras: a **rotating space station**, a drifting **3D asteroid
-field**, a **3D rocket that flies between planets** during Rocket Fuel launches
-(with a warp-speed starfield), and an **Interstellar-style black hole** — glowing
-accretion disk + photon ring — that's a possible launch destination. It degrades
-gracefully: if WebGL isn't available, the game falls back to a 2D starfield and
-plays exactly the same.
+field**, **GPU-particle nebulae**, **volumetric god-rays** on the Sun, and a
+**detailed year-3167 starship** (saucer, engineering hull, glowing warp nacelles,
+deflector dish) that flies between planets during Rocket Fuel launches with a
+warp-speed starfield. The headliner is an **Interstellar-style black hole** —
+glowing accretion disk + photon ring **plus real screen-space gravitational
+lensing** that bends the scene around it — and it's a possible launch destination.
+
+A small badge in the bottom corner shows the active renderer (**⚡ WebGPU**,
+**WebGL2**, or **2D**). It degrades gracefully: WebGPU where available, WebGL2
+otherwise, and a 2D starfield if neither — the game plays the same either way.
 
 ---
 
