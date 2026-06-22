@@ -18,3 +18,16 @@ NASA's media usage guidelines: <https://www.nasa.gov/multimedia/guidelines/index
 
 If you redistribute this project, please keep this attribution. NASA does not
 endorse this game.
+
+## 3D planet textures
+
+The equirectangular planet/Sun/Moon maps and the Milky Way background in
+`assets/textures/` are by **Solar System Scope** (<https://www.solarsystemscope.com/textures/>),
+licensed under **Creative Commons Attribution 4.0 (CC BY 4.0)**. Files include
+`earth_day.jpg`, `earth_clouds.jpg`, `moon.jpg`, `mars.jpg`, `jupiter.jpg`,
+`saturn.jpg`, `saturn_ring.png`, `sun.jpg`, `neptune.jpg`, `venus.jpg`, and
+`stars_milkyway.jpg`. These maps are based on NASA elevation and imagery data.
+
+## 3D library
+
+3D rendering uses **Three.js** (MIT license), bundled in `js/vendor/`.

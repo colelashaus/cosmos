@@ -7,10 +7,12 @@ levels, with spoken words and arcade-style sound effects.
 
 Made for three kids (ages 4, 7, and 9) — but great for any beginning reader.
 
-A **3D background layer** (Three.js, bundled locally) wraps the NASA images onto
-real rotating planet spheres, with a warp-speed starfield during launches. It
-degrades gracefully: if WebGL isn't available, the game falls back to a 2D
-starfield and plays exactly the same.
+A **cinematic 3D background layer** (Three.js, bundled locally) renders real
+rotating planets from equirectangular maps — **Earth with drifting clouds and an
+atmospheric glow, Saturn with its rings, a blazing Sun** — against a **Milky Way
+skybox**, with ACES tone mapping and **Unreal-bloom** post-processing and a
+**warp-speed starfield** during launches. It degrades gracefully: if WebGL isn't
+available, the game falls back to a 2D starfield and plays exactly the same.
 
 ---
 

@@ -1,55 +1,150 @@
 /* ============================================================
-   three3d.js — optional 3D background layer (Three.js).
-   Renders a starfield + rotating, NASA-textured planet spheres
-   behind the 2D gameplay. Degrades gracefully: if WebGL or the
-   library is unavailable, init() returns false and the game keeps
-   using the 2D starfield.
+   three3d.js — cinematic 3D background layer (Three.js).
+   Equirectangular NASA-style planet maps on real spheres, a Milky
+   Way skybox, Earth clouds + atmosphere glow, Saturn's rings, a
+   glowing sun, ACES tone mapping and Unreal-bloom post-processing,
+   plus a warp-speed starfield for launches.
 
-   Public API (all no-ops until init() succeeds):
-     CTQ.three.init()                -> boolean (true if 3D is live)
-     CTQ.three.enabled               -> boolean
-     CTQ.three.update(dt)            -> render one frame
-     CTQ.three.setScene(mode)        -> 'menu'|'asteroid'|'fuel'|'rescue'
-     CTQ.three.setDestination(key)   -> feature a planet (Rocket Fuel)
-     CTQ.three.setWarp(level)        -> 0..~1.2 warp-speed star streaks
+   Degrades gracefully: if WebGL / Three.js is unavailable, init()
+   returns false and the game falls back to the 2D starfield.
+
+   Public API:
+     CTQ.three.init() -> boolean
+     CTQ.three.enabled
+     CTQ.three.update(dt)
+     CTQ.three.setScene('menu'|'asteroid'|'fuel'|'rescue')
+     CTQ.three.setDestination(key)
+     CTQ.three.setWarp(level)
    ============================================================ */
 window.CTQ = window.CTQ || {};
 
 CTQ.three = (function () {
   const api = { enabled: false };
 
-  let renderer, scene, camera, canvas;
-  let starGeo, starPos, starN = 1600, stars;
-  let hero = null;                 // featured planet (textured sphere)
-  let bgPlanets = [];              // ambient drifting planets
-  let warp = 0, warpTarget = 0;
-  let mode = "menu";
-  let texCache = {};
-  let lastW = 0, lastH = 0;
-  let heroKey = "earth";
+  const TX = "assets/textures/";
+  const MAP = {
+    earth: TX + "earth_day.jpg",
+    clouds: TX + "earth_clouds.jpg",
+    moon: TX + "moon.jpg",
+    mars: TX + "mars.jpg",
+    jupiter: TX + "jupiter.jpg",
+    saturn: TX + "saturn.jpg",
+    saturnRing: TX + "saturn_ring.png",
+    sun: TX + "sun.jpg",
+    neptune: TX + "neptune.jpg",
+    venus: TX + "venus.jpg",
+    milkyway: TX + "stars_milkyway.jpg",
+  };
+  const R = 16; // hero planet radius
 
-  function tex(key) {
+  let renderer, scene, camera, composer, bloom;
+  let skybox, stars, starGeo, starPos, starN = 1200;
+  let dirLight;
+  let planets = {};            // key -> {group, spin, clouds?, atmo?}
+  let ambient = [];
+  let hero = null, heroKey = "earth";
+  let warp = 0, warpTarget = 0, mode = "menu", t = 0;
+  let lastW = 0, lastH = 0;
+  const texCache = {};
+
+  function tex(key, srgb) {
     if (texCache[key]) return texCache[key];
-    const src = (CTQ.data.IMAGES || {})[key];
+    const src = MAP[key];
     if (!src) return null;
-    const t = new THREE.TextureLoader().load(src);
-    if ("colorSpace" in t) t.colorSpace = THREE.SRGBColorSpace;
-    texCache[key] = t;
-    return t;
+    const tx = new THREE.TextureLoader().load(src);
+    if (srgb && "sRGBEncoding" in THREE) tx.encoding = THREE.sRGBEncoding;
+    texCache[key] = tx;
+    return tx;
   }
 
-  function makePlanet(key, radius) {
-    const isSun = key === "sun";
-    const mat = new THREE.MeshPhongMaterial({
-      map: tex(key),
-      shininess: isSun ? 0 : 6,
-      emissive: isSun ? 0xffaa33 : 0x111418,
-      emissiveIntensity: isSun ? 0.7 : 0.25,
+  // soft radial glow sprite (sun corona / atmosphere puff)
+  function glowSprite(color, size) {
+    const c = document.createElement("canvas"); c.width = c.height = 128;
+    const g = c.getContext("2d").createRadialGradient(64, 64, 0, 64, 64, 64);
+    g.addColorStop(0, color); g.addColorStop(0.4, color.replace("1)", "0.5)")); g.addColorStop(1, "rgba(0,0,0,0)");
+    const cx = c.getContext("2d"); cx.fillStyle = g; cx.fillRect(0, 0, 128, 128);
+    const mat = new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), blending: THREE.AdditiveBlending, transparent: true, depthWrite: false });
+    const s = new THREE.Sprite(mat); s.scale.setScalar(size);
+    return s;
+  }
+
+  // fresnel atmosphere shell
+  function atmosphere(radius, color) {
+    const mat = new THREE.ShaderMaterial({
+      uniforms: { glowColor: { value: new THREE.Color(color) }, power: { value: 3.2 } },
+      vertexShader:
+        "varying vec3 vN; varying vec3 vP;" +
+        "void main(){ vN = normalize(normalMatrix * normal); vec4 mv = modelViewMatrix * vec4(position,1.0); vP = mv.xyz; gl_Position = projectionMatrix * mv; }",
+      fragmentShader:
+        "uniform vec3 glowColor; uniform float power; varying vec3 vN; varying vec3 vP;" +
+        "void main(){ vec3 v = normalize(-vP); float f = pow(1.0 - abs(dot(vN, v)), power); gl_FragColor = vec4(glowColor, f); }",
+      transparent: true, blending: THREE.AdditiveBlending, side: THREE.BackSide, depthWrite: false,
     });
-    const mesh = new THREE.Mesh(new THREE.SphereGeometry(radius, 48, 48), mat);
-    mesh.userData.spin = 0.06 + Math.random() * 0.06;
-    mesh.rotation.z = (Math.random() - 0.5) * 0.5;   // slight axial tilt
-    return mesh;
+    return new THREE.Mesh(new THREE.SphereGeometry(radius, 48, 48), mat);
+  }
+
+  function buildPlanet(key) {
+    const group = new THREE.Group();
+    const isSun = key === "sun";
+    const sphereMat = isSun
+      ? new THREE.MeshBasicMaterial({ map: tex(key, true) })
+      : new THREE.MeshStandardMaterial({ map: tex(key, true), roughness: 1, metalness: 0 });
+    const sphere = new THREE.Mesh(new THREE.SphereGeometry(R, 72, 72), sphereMat);
+    group.add(sphere);
+
+    const data = { group, spin: 0.08, clouds: null };
+
+    if (key === "earth") {
+      const clouds = new THREE.Mesh(
+        new THREE.SphereGeometry(R * 1.012, 72, 72),
+        new THREE.MeshStandardMaterial({ alphaMap: tex("clouds", false), transparent: true, color: 0xffffff, roughness: 1, metalness: 0, depthWrite: false, opacity: 0.9 })
+      );
+      group.add(clouds); data.clouds = clouds;
+      group.add(atmosphere(R * 1.13, 0x5ab6ff));
+      group.userData.tilt = 0.41;
+    } else if (key === "mars") {
+      group.add(atmosphere(R * 1.10, 0xd98a5a));
+    } else if (key === "saturn") {
+      const ring = buildRing(R * 1.35, R * 2.3);
+      ring.rotation.x = Math.PI / 2;
+      group.add(ring);
+      group.rotation.z = 0.47; // axial tilt
+    } else if (isSun) {
+      group.add(glowSprite("rgba(255,200,90,1)", R * 5));
+      data.spin = 0.03;
+    }
+
+    group.visible = false;
+    scene.add(group);
+    return data;
+  }
+
+  function buildRing(inner, outer) {
+    const geo = new THREE.RingGeometry(inner, outer, 96, 1);
+    // remap UVs so the ring strip maps radially (u = normalized radius)
+    const pos = geo.attributes.position, uv = geo.attributes.uv;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i), y = pos.getY(i);
+      const r = Math.sqrt(x * x + y * y);
+      uv.setXY(i, (r - inner) / (outer - inner), 0.5);
+    }
+    uv.needsUpdate = true;
+    const mat = new THREE.MeshBasicMaterial({ map: tex("saturnRing", true), side: THREE.DoubleSide, transparent: true });
+    return new THREE.Mesh(geo, mat);
+  }
+
+  function getPlanet(key) {
+    if (!planets[key]) planets[key] = buildPlanet(key);
+    return planets[key];
+  }
+
+  function simplePlanet(key, radius) {
+    const m = new THREE.Mesh(
+      new THREE.SphereGeometry(radius, 48, 48),
+      new THREE.MeshStandardMaterial({ map: tex(key, true), roughness: 1, metalness: 0 })
+    );
+    m.userData.spin = 0.05 + Math.random() * 0.05;
+    return m;
   }
 
   function buildStars() {
@@ -58,112 +153,126 @@ CTQ.three = (function () {
     for (let i = 0; i < starN; i++) {
       starPos[i * 3] = (Math.random() - 0.5) * 700;
       starPos[i * 3 + 1] = (Math.random() - 0.5) * 700;
-      starPos[i * 3 + 2] = -Math.random() * 700;       // ahead of the camera
+      starPos[i * 3 + 2] = -Math.random() * 700;
     }
     starGeo.setAttribute("position", new THREE.BufferAttribute(starPos, 3));
-    const mat = new THREE.PointsMaterial({ color: 0xffffff, size: 1.4, sizeAttenuation: true, transparent: true, opacity: 0.9 });
-    stars = new THREE.Points(starGeo, mat);
+    stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xcfe6ff, size: 1.3, sizeAttenuation: true, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending }));
     scene.add(stars);
   }
 
   function init() {
     if (api.enabled) return true;
     if (!window.THREE) return false;
-    canvas = document.getElementById("bg3d");
+    const canvas = document.getElementById("bg3d");
     if (!canvas) return false;
     try {
-      renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: "low-power" });
+      renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: "high-performance" });
     } catch (e) { return false; }
     if (!renderer) return false;
 
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    if ("outputEncoding" in renderer) renderer.outputEncoding = THREE.sRGBEncoding;
+    if ("toneMapping" in renderer) { renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.15; }
+
     scene = new THREE.Scene();
-    camera = new THREE.PerspectiveCamera(55, 1, 0.1, 3000);
+    camera = new THREE.PerspectiveCamera(55, 1, 0.1, 4000);
     camera.position.set(0, 0, 60);
 
-    scene.add(new THREE.AmbientLight(0x556677, 1.1));
-    const sun = new THREE.DirectionalLight(0xffffff, 1.15);
-    sun.position.set(-1, 0.5, 1.2);
-    scene.add(sun);
+    scene.add(new THREE.AmbientLight(0x404a5a, 0.9));
+    dirLight = new THREE.DirectionalLight(0xfff4e6, 2.2);
+    dirLight.position.set(-0.6, 0.35, 1);
+    scene.add(dirLight);
+
+    // Milky Way skybox
+    skybox = new THREE.Mesh(
+      new THREE.SphereGeometry(1500, 48, 48),
+      new THREE.MeshBasicMaterial({ map: tex("milkyway", true), side: THREE.BackSide })
+    );
+    scene.add(skybox);
 
     buildStars();
 
-    hero = makePlanet(heroKey, 16);
-    scene.add(hero);
+    hero = getPlanet("earth"); hero.group.visible = true;
 
-    // a couple of distant ambient planets
-    const a = makePlanet("jupiter", 9); a.position.set(-46, 26, -120); scene.add(a);
-    const b = makePlanet("mars", 5); b.position.set(52, -20, -90); scene.add(b);
-    bgPlanets = [a, b];
+    ambient = [];
+    const a = simplePlanet("jupiter", 9); a.position.set(-58, 30, -160); scene.add(a); ambient.push(a);
+    const b = simplePlanet("neptune", 5); b.position.set(64, -26, -120); scene.add(b); ambient.push(b);
 
+    setupComposer();
     resize();
     api.enabled = true;
     setScene("menu");
     return true;
   }
 
+  function setupComposer() {
+    if (!THREE.EffectComposer || !THREE.RenderPass || !THREE.UnrealBloomPass) { composer = null; return; }
+    try {
+      composer = new THREE.EffectComposer(renderer);
+      composer.addPass(new THREE.RenderPass(scene, camera));
+      bloom = new THREE.UnrealBloomPass(new THREE.Vector2(1, 1), 0.85, 0.5, 0.78);
+      composer.addPass(bloom);
+    } catch (e) { composer = null; }
+  }
+
   function resize() {
-    if (!api.enabled && !renderer) return;
     const w = window.innerWidth, h = window.innerHeight;
     lastW = w; lastH = h;
     renderer.setSize(w, h, false);
-    camera.aspect = w / h;
-    camera.updateProjectionMatrix();
+    camera.aspect = w / h; camera.updateProjectionMatrix();
+    if (composer) composer.setSize(w, h);
   }
 
-  // Place the hero planet for the current screen.
-  function setScene(m) {
-    mode = m;
-    if (!api.enabled) return;
-    if (m === "fuel") {
-      hero.position.set(0, 20, -10);   // up top, behind the 2D destination dial
-      hero.scale.setScalar(1.0);
-    } else if (m === "asteroid") {
-      hero.position.set(40, 32, -90);  // distant world up high (2D Earth is the one you defend)
-      hero.scale.setScalar(1.0);
-    } else if (m === "rescue") {
-      hero.position.set(-30, 14, -40);
-      hero.scale.setScalar(1.1);
-    } else { // menu
-      hero.position.set(34, -6, -20);
-      hero.scale.setScalar(1.15);
-    }
+  function applyHeroTransform() {
+    if (!hero) return;
+    const g = hero.group;
+    if (mode === "fuel")        { g.position.set(0, 20, -8);  g.scale.setScalar(1.05); }
+    else if (mode === "asteroid"){ g.position.set(42, 34, -110); g.scale.setScalar(0.9); }
+    else if (mode === "rescue") { g.position.set(-34, 16, -50); g.scale.setScalar(1.0); }
+    else                        { g.position.set(36, -4, -24); g.scale.setScalar(1.1); }
   }
+
+  function setScene(m) { mode = m; applyHeroTransform(); }
 
   function setDestination(key) {
     if (!api.enabled || !key || key === heroKey) return;
+    if (hero) hero.group.visible = false;
     heroKey = key;
-    const t = tex(key);
-    if (t) { hero.material.map = t; hero.material.emissive.setHex(key === "sun" ? 0xffaa33 : 0x111418); hero.material.needsUpdate = true; }
+    hero = getPlanet(key);
+    hero.group.visible = true;
+    applyHeroTransform();
   }
 
   function setWarp(level) { warpTarget = Math.max(0, level || 0); }
 
   function update(dt) {
     if (!api.enabled) return;
+    t += dt;
     if (window.innerWidth !== lastW || window.innerHeight !== lastH) resize();
-
-    // ease warp toward target
     warp += (warpTarget - warp) * Math.min(1, dt * 6);
 
-    // spin planets
-    if (hero) hero.rotation.y += hero.userData.spin * dt;
-    for (const p of bgPlanets) p.rotation.y += p.userData.spin * dt;
+    if (skybox) skybox.rotation.y += dt * 0.005;
+    if (hero) {
+      hero.group.rotation.y += hero.spin * dt;
+      if (hero.clouds) hero.clouds.rotation.y += hero.spin * 0.4 * dt;
+    }
+    for (const p of ambient) p.rotation.y += p.userData.spin * dt;
 
-    // drive the starfield toward the camera (fast during warp)
-    const speed = 14 + warp * 900;
+    // warp starfield
+    const speed = 12 + warp * 1000;
     for (let i = 0; i < starN; i++) {
       let z = starPos[i * 3 + 2] + speed * dt;
       if (z > camera.position.z) { z = -700; starPos[i * 3] = (Math.random() - 0.5) * 700; starPos[i * 3 + 1] = (Math.random() - 0.5) * 700; }
       starPos[i * 3 + 2] = z;
     }
     starGeo.attributes.position.needsUpdate = true;
-    stars.material.size = 1.4 + warp * 3.5;
+    stars.material.size = 1.3 + warp * 3.5;
+    stars.material.opacity = Math.min(1, 0.55 + warp);
 
-    // during warp the hero planet recedes for a "leaving orbit" feel
-    if (warp > 0.02) hero.position.z -= warp * 60 * dt;
+    if (warpTarget > 0.02 && hero) hero.group.position.z -= warp * 70 * dt;
 
-    renderer.render(scene, camera);
+    if (composer) composer.render();
+    else renderer.render(scene, camera);
   }
 
   api.init = init;
