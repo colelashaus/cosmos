@@ -7,8 +7,10 @@ levels, with spoken words and arcade-style sound effects.
 
 Made for three kids (ages 4, 7, and 9) — but great for any beginning reader.
 
-A **cinematic 3D background layer** (Three.js, bundled locally) renders real
-rotating planets from equirectangular maps — **Earth with drifting clouds and an
+A **cinematic 3D background layer** runs on Three.js's modern **WebGPU renderer**
+(bundled locally) — and **automatically falls back to WebGL2** on devices without
+WebGPU, or to a 2D starfield if neither is available. It renders real rotating
+planets from equirectangular maps — **Earth with drifting clouds and an
 atmospheric glow, Saturn and Jupiter with rings, a blazing Sun** — against a
 **Milky Way skybox**, with ACES tone mapping and **Unreal-bloom** post-processing.
 It's packed with extras: a **rotating space station**, a drifting **3D asteroid

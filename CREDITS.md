@@ -30,4 +30,5 @@ licensed under **Creative Commons Attribution 4.0 (CC BY 4.0)**. Files include
 
 ## 3D library
 
-3D rendering uses **Three.js** (MIT license), bundled in `js/vendor/`.
+3D rendering uses **Three.js** (MIT license) on its WebGPU renderer, bundled
+locally at `js/vendor/three-wgpu/three.webgpu.min.js`.

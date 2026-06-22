@@ -51,12 +51,10 @@
   }
 
   // ---- Boot ----
+  // The 3D layer (js/three3d.js) is an ES module that self-initializes and, on
+  // success, disables the 2D starfield itself. Until then the 2D starfield shows.
   E.resize();
   E.initStars();
-  // Try the 3D background layer; if WebGL/Three.js is unavailable we keep 2D stars.
-  try {
-    if (CTQ.three && CTQ.three.init()) E.setStarfield2D(false);
-  } catch (e) { /* fall back to 2D starfield */ }
   E.loadAssets().then(() => {
     E.start();
     goIntro();
