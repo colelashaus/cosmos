@@ -135,7 +135,7 @@ CTQ.data = (function () {
   ];
 
   // NASA public-domain images shipped in /assets/images (with credits in CREDITS.md)
-  const PLANETS = ["earth", "mars", "jupiter", "saturn", "moon", "sun"];
+  const PLANETS = ["earth", "mars", "jupiter", "saturn", "moon", "sun", "blackhole"];
   const IMAGES = {
     earth: "assets/images/earth.jpg",
     mars: "assets/images/mars.jpg",

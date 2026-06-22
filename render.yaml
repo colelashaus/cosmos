@@ -7,10 +7,12 @@ services:
     # No build step needed — the site is plain HTML/CSS/JS.
     buildCommand: ""
     staticPublishPath: .
+    # Revalidate on every load so redeploys are never served stale. Unchanged
+    # files (e.g. large textures) still return a fast 304 Not Modified.
     headers:
       - path: /*
         name: Cache-Control
-        value: public, max-age=3600
+        value: no-cache
     routes:
       - type: rewrite
         source: /*

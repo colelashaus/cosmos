@@ -520,10 +520,14 @@ CTQ.games = (function () {
       A.speak("Get ready!");
     }
 
+    function destLabel(k) { return k === "blackhole" ? "BLACK HOLE" : k.toUpperCase(); }
+    function destName(k) { return k === "blackhole" ? "the black hole" : k; }
+
     function ignite() {
       const n = nozzle();
       state = "liftoff"; stateT = 0; rocketVy = 130;
       A.sfx.launch(); A.speak("Blast off!");
+      if (CTQ.three && CTQ.three.enabled) CTQ.three.launchRocket();
       for (let i = 0; i < 3; i++) rings.push({ x: n.x, y: n.y, r: 18 + i * 28, vr: 520, life: 1 });
       for (let i = 0; i < 32; i++) sparks.spawn({ x: n.x, y: n.y, vx: rand(-340, 340), vy: rand(-100, 320), size: rand(8, 18), decay: rand(1.6, 2.6), grav: 180, drag: 0.93 });
       for (let i = 0; i < 16; i++) smokeEm.spawn({ x: n.x + rand(-40, 40), y: n.y, vx: rand(-180, 180), vy: rand(-20, 70), size: rand(50, 100) * n.s, grow: 80, decay: rand(0.5, 1), drag: 0.96 });
@@ -629,7 +633,7 @@ CTQ.games = (function () {
             planetsVisited++;
             planetIdx = (planetIdx + 1) % D.PLANETS.length;
             A.sfx.fanfare();
-            A.speak("Welcome to " + D.PLANETS[planetIdx] + "!");
+            A.speak("Welcome to " + destName(D.PLANETS[planetIdx]) + "!");
             if (CTQ.three && CTQ.three.enabled) CTQ.three.setDestination(D.PLANETS[planetIdx]);
             state = "arrive"; stateT = 0;
           }
@@ -656,17 +660,22 @@ CTQ.games = (function () {
         const pr = Math.min(W, H) * 0.13 * arriveZoom;
         const py = H * 0.19 + (state === "arrive" ? Math.sin(stateT * 2) * 6 : 0);
         if (!use3DPlanet) {
-          ctx.save();
-          ctx.beginPath(); ctx.arc(W / 2, py, pr, 0, Math.PI * 2); ctx.clip();
-          if (im) ctx.drawImage(im, W / 2 - pr, py - pr, pr * 2, pr * 2);
-          else { ctx.fillStyle = "#7a5"; ctx.fillRect(W / 2 - pr, py - pr, pr * 2, pr * 2); }
-          ctx.restore();
-          ctx.beginPath(); ctx.arc(W / 2, py, pr, 0, Math.PI * 2);
-          ctx.strokeStyle = "rgba(90,215,255,0.45)"; ctx.lineWidth = 3; ctx.stroke();
+          if (destKey === "blackhole") {
+            ctx.fillStyle = "#000"; ctx.beginPath(); ctx.arc(W / 2, py, pr * 0.62, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = "#ffae5a"; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(W / 2, py, pr * 0.86, 0, Math.PI * 2); ctx.stroke();
+          } else {
+            ctx.save();
+            ctx.beginPath(); ctx.arc(W / 2, py, pr, 0, Math.PI * 2); ctx.clip();
+            if (im) ctx.drawImage(im, W / 2 - pr, py - pr, pr * 2, pr * 2);
+            else { ctx.fillStyle = "#7a5"; ctx.fillRect(W / 2 - pr, py - pr, pr * 2, pr * 2); }
+            ctx.restore();
+            ctx.beginPath(); ctx.arc(W / 2, py, pr, 0, Math.PI * 2);
+            ctx.strokeStyle = "rgba(90,215,255,0.45)"; ctx.lineWidth = 3; ctx.stroke();
+          }
         }
         ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
         ctx.fillStyle = "#cfe6ff"; ctx.font = "800 18px " + FONT;
-        ctx.fillText("Destination: " + destKey.toUpperCase(), W / 2, use3DPlanet ? 86 : py + pr + 26);
+        ctx.fillText("Destination: " + destLabel(destKey), W / 2, use3DPlanet ? 86 : py + pr + 26);
 
         // ground shockwave rings
         for (const r of rings) {
@@ -724,7 +733,7 @@ CTQ.games = (function () {
           ctx.textBaseline = "alphabetic";
         } else if (state === "arrive") {
           ctx.fillStyle = "#ffe45a"; ctx.font = "900 34px " + FONT;
-          ctx.fillText("🎉 Welcome to " + destKey.toUpperCase() + "! 🎉", W / 2, H * 0.62);
+          ctx.fillText("🎉 Welcome to " + destLabel(destKey) + "! 🎉", W / 2, H * 0.62);
         }
 
         // fuel gauge (during typing / countdown)

@@ -9,10 +9,14 @@ Made for three kids (ages 4, 7, and 9) — but great for any beginning reader.
 
 A **cinematic 3D background layer** (Three.js, bundled locally) renders real
 rotating planets from equirectangular maps — **Earth with drifting clouds and an
-atmospheric glow, Saturn with its rings, a blazing Sun** — against a **Milky Way
-skybox**, with ACES tone mapping and **Unreal-bloom** post-processing and a
-**warp-speed starfield** during launches. It degrades gracefully: if WebGL isn't
-available, the game falls back to a 2D starfield and plays exactly the same.
+atmospheric glow, Saturn and Jupiter with rings, a blazing Sun** — against a
+**Milky Way skybox**, with ACES tone mapping and **Unreal-bloom** post-processing.
+It's packed with extras: a **rotating space station**, a drifting **3D asteroid
+field**, a **3D rocket that flies between planets** during Rocket Fuel launches
+(with a warp-speed starfield), and an **Interstellar-style black hole** — glowing
+accretion disk + photon ring — that's a possible launch destination. It degrades
+gracefully: if WebGL isn't available, the game falls back to a 2D starfield and
+plays exactly the same.
 
 ---
 
