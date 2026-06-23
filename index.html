@@ -22,14 +22,15 @@
     <div id="gpu-badge">2D</div>
   </div>
 
-  <!-- Scripts load in order; everything hangs off the global CTQ namespace -->
-  <script src="js/data.js"></script>
-  <script src="js/audio.js"></script>
-  <script src="js/engine.js"></script>
-  <script src="js/sprites.js"></script>
-  <script src="js/menus.js"></script>
-  <script src="js/games.js"></script>
-  <script src="js/main.js"></script>
+  <!-- Scripts load in order; everything hangs off the global CTQ namespace.
+       ?v= cache-busts so updates aren't served stale. -->
+  <script src="js/data.js?v=8"></script>
+  <script src="js/audio.js?v=8"></script>
+  <script src="js/engine.js?v=8"></script>
+  <script src="js/sprites.js?v=8"></script>
+  <script src="js/menus.js?v=8"></script>
+  <script src="js/games.js?v=8"></script>
+  <script src="js/main.js?v=8"></script>
 
   <!-- 3D layer: modern Three.js on the WebGPU renderer (auto-falls back to WebGL2).
        ES module, loads after the classic scripts and self-initializes. -->

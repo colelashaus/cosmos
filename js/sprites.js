@@ -14,67 +14,78 @@ CTQ.sprites = (function () {
     return c;
   }
 
-  // A detailed sci-fi rocket, rendered once. Nose points up; (0,0)=center.
+  // A year-3167 strike ship, rendered once. Nose up; (0,0)=center.
+  // Dark titanium-alloy hull, neon trim, glowing cockpit + plasma engines.
   function buildRocket() {
-    const W = 140, H = 250;
+    const W = 152, H = 252;
     rocket = mk(W, H);
     const c = rocket.getContext("2d");
     const cx = W / 2;
 
-    // side boosters
-    function booster(x) {
-      c.fillStyle = "#aab7cc";
+    // ---- swept wings (dark, with magenta neon leading edge) ----
+    function wing(s) {
+      c.save();
+      c.fillStyle = "#1b2238";
       c.beginPath();
-      c.moveTo(x, 95); c.lineTo(x + 20, 95);
-      c.lineTo(x + 20, 205); c.lineTo(x + 10, 226); c.lineTo(x, 205);
+      c.moveTo(cx + s * 22, 150);
+      c.lineTo(cx + s * 66, 214);
+      c.lineTo(cx + s * 52, 220);
+      c.lineTo(cx + s * 20, 182);
       c.closePath(); c.fill();
-      c.fillStyle = "#ff5a5a"; c.fillRect(x, 95, 20, 9);
+      c.shadowColor = "#ff36c8"; c.shadowBlur = 12;
+      c.strokeStyle = "#ff5ad6"; c.lineWidth = 2.5;
+      c.beginPath(); c.moveTo(cx + s * 22, 150); c.lineTo(cx + s * 66, 214); c.stroke();
+      c.restore();
     }
-    booster(cx - 50); booster(cx + 30);
+    wing(-1); wing(1);
 
-    // main body
-    const g = c.createLinearGradient(cx - 34, 0, cx + 34, 0);
-    g.addColorStop(0, "#c2cde2");
-    g.addColorStop(0.45, "#ffffff");
-    g.addColorStop(1, "#8e9cb6");
+    // ---- main hull (dark metallic, cyan neon edge) ----
+    const g = c.createLinearGradient(cx - 32, 0, cx + 32, 0);
+    g.addColorStop(0, "#141b30"); g.addColorStop(0.42, "#5c6e9c");
+    g.addColorStop(0.5, "#cdd9f3"); g.addColorStop(0.58, "#5c6e9c"); g.addColorStop(1, "#141b30");
     c.fillStyle = g;
     c.beginPath();
-    c.moveTo(cx, 14);
-    c.bezierCurveTo(cx + 36, 64, cx + 32, 160, cx + 26, 204);
-    c.lineTo(cx - 26, 204);
-    c.bezierCurveTo(cx - 32, 160, cx - 36, 64, cx, 14);
+    c.moveTo(cx, 8);
+    c.bezierCurveTo(cx + 30, 70, cx + 30, 162, cx + 20, 214);
+    c.lineTo(cx + 13, 232); c.lineTo(cx - 13, 232); c.lineTo(cx - 20, 214);
+    c.bezierCurveTo(cx - 30, 162, cx - 30, 70, cx, 8);
     c.closePath(); c.fill();
+    c.save(); c.shadowColor = "#27e8ff"; c.shadowBlur = 10; c.strokeStyle = "#5ff2ff"; c.lineWidth = 2; c.stroke(); c.restore();
 
-    // nose cone
-    c.fillStyle = "#ff6b4a";
+    // ---- warm sun-forged accent band ----
+    c.save(); c.shadowColor = "#ff9a2e"; c.shadowBlur = 8; c.strokeStyle = "#ffb24a"; c.lineWidth = 3;
+    c.beginPath(); c.moveTo(cx - 17, 150); c.lineTo(cx + 17, 150); c.stroke(); c.restore();
+
+    // ---- weapon pods (photon torpedo launchers) ----
+    [-1, 1].forEach((s) => {
+      c.fillStyle = "#222b45"; c.fillRect(cx + s * 24 - 4, 166, 8, 28);
+      c.save(); c.shadowColor = "#ffae3a"; c.shadowBlur = 8; c.fillStyle = "#ffd24a";
+      c.beginPath(); c.arc(cx + s * 24, 166, 3.4, 0, Math.PI * 2); c.fill(); c.restore();
+    });
+
+    // ---- cockpit (glowing cyan) ----
+    c.save();
+    const wgg = c.createRadialGradient(cx - 3, 84, 1, cx, 88, 16);
+    wgg.addColorStop(0, "#eaffff"); wgg.addColorStop(0.5, "#49d8ff"); wgg.addColorStop(1, "#0b6f9e");
+    c.shadowColor = "#49d8ff"; c.shadowBlur = 14; c.fillStyle = wgg;
+    c.beginPath(); c.ellipse(cx, 90, 12, 17, 0, 0, Math.PI * 2); c.fill();
+    c.restore();
+
+    // ---- plasma engine nozzles (glowing cyan) ----
+    c.save(); c.shadowColor = "#33e6ff"; c.shadowBlur = 16;
+    [-20, 0, 20].forEach((dx, i) => {
+      const r = (i === 1 ? 7 : 6) + 3;
+      const eg = c.createRadialGradient(cx + dx, 234, 1, cx + dx, 234, r);
+      eg.addColorStop(0, "#ffffff"); eg.addColorStop(0.4, "#5fefff"); eg.addColorStop(1, "rgba(40,160,255,0)");
+      c.fillStyle = eg; c.beginPath(); c.arc(cx + dx, 234, r, 0, Math.PI * 2); c.fill();
+    });
+    c.restore();
+
+    // subtle panel lines
+    c.strokeStyle = "rgba(180,200,240,0.25)"; c.lineWidth = 1;
     c.beginPath();
-    c.moveTo(cx, 14);
-    c.bezierCurveTo(cx + 20, 44, cx + 17, 60, cx + 15, 70);
-    c.lineTo(cx - 15, 70);
-    c.bezierCurveTo(cx - 17, 60, cx - 20, 44, cx, 14);
-    c.closePath(); c.fill();
-
-    // window
-    const wg = c.createRadialGradient(cx - 4, 104, 2, cx, 108, 17);
-    wg.addColorStop(0, "#bdeeff");
-    wg.addColorStop(1, "#2b86a6");
-    c.fillStyle = wg;
-    c.beginPath(); c.arc(cx, 108, 16, 0, Math.PI * 2); c.fill();
-    c.lineWidth = 3; c.strokeStyle = "#3a4a66"; c.stroke();
-
-    // fins
-    c.fillStyle = "#ff7ad5";
-    c.beginPath(); c.moveTo(cx - 26, 176); c.lineTo(cx - 48, 220); c.lineTo(cx - 26, 208); c.closePath(); c.fill();
-    c.beginPath(); c.moveTo(cx + 26, 176); c.lineTo(cx + 48, 220); c.lineTo(cx + 26, 208); c.closePath(); c.fill();
-
-    // nozzle
-    c.fillStyle = "#566784"; c.fillRect(cx - 13, 204, 26, 16);
-
-    // panel lines
-    c.strokeStyle = "rgba(90,110,140,0.5)"; c.lineWidth = 2;
-    c.beginPath();
-    c.moveTo(cx - 20, 128); c.lineTo(cx + 20, 128);
-    c.moveTo(cx - 22, 158); c.lineTo(cx + 22, 158);
+    c.moveTo(cx - 15, 118); c.lineTo(cx + 15, 118);
+    c.moveTo(cx - 18, 200); c.lineTo(cx + 18, 200);
     c.stroke();
   }
 
@@ -93,7 +104,7 @@ CTQ.sprites = (function () {
   function init() {
     if (rocket) return;
     buildRocket();
-    flame = buildGlow([[0, "rgba(255,255,220,1)"], [0.35, "rgba(255,160,40,0.95)"], [1, "rgba(255,60,20,0)"]]);
+    flame = buildGlow([[0, "rgba(255,255,255,1)"], [0.35, "rgba(90,210,255,0.95)"], [1, "rgba(30,90,255,0)"]]);
     smoke = buildGlow([[0, "rgba(225,225,235,0.85)"], [0.5, "rgba(150,150,170,0.5)"], [1, "rgba(120,120,140,0)"]]);
     spark = buildGlow([[0, "rgba(255,255,255,1)"], [0.5, "rgba(160,220,255,0.9)"], [1, "rgba(90,180,255,0)"]], 32);
   }

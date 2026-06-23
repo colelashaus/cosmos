@@ -699,9 +699,9 @@ CTQ.games = (function () {
           const fl = state === "liftoff" ? 1 : 0.4;
           const len = (90 + 70 * fl) * n.s;
           const fg = ctx.createLinearGradient(0, n.y, 0, n.y + len);
-          fg.addColorStop(0, "rgba(255,255,215,0.95)");
-          fg.addColorStop(0.5, "rgba(255,150,40,0.7)");
-          fg.addColorStop(1, "rgba(255,60,20,0)");
+          fg.addColorStop(0, "rgba(235,255,255,0.95)");
+          fg.addColorStop(0.5, "rgba(70,210,255,0.75)");
+          fg.addColorStop(1, "rgba(40,120,255,0)");
           ctx.fillStyle = fg;
           ctx.beginPath();
           ctx.moveTo(n.x - 18 * n.s + ox, n.y); ctx.lineTo(n.x + 18 * n.s + ox, n.y);
