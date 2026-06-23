@@ -30,6 +30,7 @@ CTQ.three = (function () {
   let skybox, stars, starGeo, starPos, starN = 1200;
   let planets = {}, ambient = [], station = null, asteroids = [], rocket3D = null;
   let rocketFly = 0, rocketFlying = false;
+  let torpedoes = [], shipFireT = 0, lastTorpedo = 0;
   let hero = null, heroKey = "earth";
   let nebulae = [];
   let uLensPos = null, uLensStr = null, uAspect = null;
@@ -176,62 +177,65 @@ CTQ.three = (function () {
     return arr;
   }
 
-  // A detailed year-3167 starship (Star Trek-inspired: saucer + engineering
-  // hull + warp nacelles, with glowing deflector, bussard collectors, warp
-  // grilles and running lights). Built facing -Z so lookAt() aims it forward.
+  // A year-3167 strike ship: faceted titanium-alloy stealth hull (forged with a
+  // warm sun-fire sheen), pulsing neon spines, glowing hyperdrive cores, photon
+  // torpedo launchers and wingtip lasers. Built nose-forward at -Z so lookAt()
+  // aims it at the destination. Animated bits are stashed on userData.
   function buildStarship() {
     const g = new THREE.Group();
-    const hull = new THREE.MeshStandardNodeMaterial({ color: 0xd2dae8, roughness: 0.32, metalness: 0.75 });
-    const hullDark = new THREE.MeshStandardNodeMaterial({ color: 0x9aa6bc, roughness: 0.4, metalness: 0.7 });
-    const glowBlue = new THREE.MeshStandardNodeMaterial({ color: 0x0a2740, emissive: 0x3aa6ff, emissiveIntensity: 2.6, roughness: 0.4, metalness: 0.2 });
-    const glowWarp = new THREE.MeshStandardNodeMaterial({ color: 0x0a1840, emissive: 0x5e8bff, emissiveIntensity: 3.0, roughness: 0.5 });
-    const glowAmber = new THREE.MeshStandardNodeMaterial({ color: 0x3a1e00, emissive: 0xffae3a, emissiveIntensity: 3.0 });
-    const glowRed = new THREE.MeshStandardNodeMaterial({ color: 0x3a0a06, emissive: 0xff4422, emissiveIntensity: 3.0 });
+    const neon = [], engines = [];
+    // "titanium fused in the fires of a great sun" — polished metal, warm tint
+    const titanium = new THREE.MeshStandardNodeMaterial({ color: 0xcdd1d8, metalness: 0.96, roughness: 0.2, flatShading: true });
+    const sunForged = new THREE.MeshStandardNodeMaterial({ color: 0xe9dcc4, metalness: 0.9, roughness: 0.32, emissive: 0x6b2e00, emissiveIntensity: 0.6, flatShading: true });
+    const neonCyan = new THREE.MeshStandardNodeMaterial({ color: 0x001a22, emissive: 0x1ae3ff, emissiveIntensity: 3.0 });
+    const neonMag = new THREE.MeshStandardNodeMaterial({ color: 0x220016, emissive: 0xff2bd0, emissiveIntensity: 3.0 });
+    const neonOrange = new THREE.MeshStandardNodeMaterial({ color: 0x241000, emissive: 0xff8a1e, emissiveIntensity: 2.6 });
+    const coreMat = new THREE.MeshStandardNodeMaterial({ color: 0x001022, emissive: 0x4cd2ff, emissiveIntensity: 4.0 });
 
-    // --- saucer (primary hull) at front (-Z) ---
-    const saucer = new THREE.Mesh(new THREE.CylinderGeometry(2.4, 2.4, 0.42, 64), hull);
-    saucer.scale.set(1, 1, 1); saucer.rotation.x = Math.PI / 2; saucer.position.z = -2.2; g.add(saucer);
-    const saucerEdge = new THREE.Mesh(new THREE.TorusGeometry(2.4, 0.12, 12, 64), glowBlue);
-    saucerEdge.position.z = -2.2; g.add(saucerEdge);
-    const bridge = new THREE.Mesh(new THREE.SphereGeometry(0.7, 24, 16, 0, Math.PI * 2, 0, Math.PI / 2), hull);
-    bridge.position.set(0, 0.28, -2.2); g.add(bridge);
+    // faceted arrowhead hull (long along Z, nose at -Z)
+    const hull = new THREE.Mesh(new THREE.OctahedronGeometry(1.5, 0), titanium); hull.scale.set(0.72, 0.5, 2.7); g.add(hull);
+    const belly = new THREE.Mesh(new THREE.OctahedronGeometry(1.2, 0), sunForged); belly.scale.set(0.62, 0.34, 2.3); belly.position.y = -0.26; g.add(belly);
+    // sharp nose spike
+    const nose = new THREE.Mesh(new THREE.ConeGeometry(0.28, 1.6, 6), titanium); nose.rotation.x = -Math.PI / 2; nose.position.z = -3.4; g.add(nose);
 
-    // --- neck ---
-    const neck = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.5, 2.2), hullDark);
-    neck.position.set(0, -0.15, -1.0); neck.rotation.x = 0.25; g.add(neck);
+    // glowing cockpit canopy
+    const canopy = new THREE.Mesh(new THREE.SphereGeometry(0.42, 18, 12, 0, Math.PI * 2, 0, Math.PI / 2), neonCyan);
+    canopy.position.set(0, 0.26, -1.5); canopy.scale.set(1, 0.7, 1.7); g.add(canopy); neon.push(canopy);
 
-    // --- engineering hull (secondary) along Z ---
-    const eng = new THREE.Mesh(new THREE.CapsuleGeometry(0.85, 2.4, 8, 20), hull);
-    eng.rotation.x = Math.PI / 2; eng.position.set(0, -0.45, 0.9); g.add(eng);
-    // deflector dish at the front of the engineering hull
-    const dish = new THREE.Mesh(new THREE.CircleGeometry(0.62, 32), glowAmber);
-    dish.position.set(0, -0.45, -0.55); g.add(dish);
-
-    // --- warp nacelles + pylons ---
+    // neon spine strips
     [-1, 1].forEach((s) => {
-      const pylon = new THREE.Mesh(new THREE.BoxGeometry(0.22, 1.5, 1.0), hullDark);
-      pylon.position.set(s * 1.0, 0.2, 1.4); pylon.rotation.z = s * 0.5; g.add(pylon);
-      const nacelle = new THREE.Mesh(new THREE.CapsuleGeometry(0.34, 2.6, 8, 18), hull);
-      nacelle.rotation.x = Math.PI / 2; nacelle.position.set(s * 1.9, 0.95, 1.2); g.add(nacelle);
-      // bussard collector (glowing red) at the front
-      const bussard = new THREE.Mesh(new THREE.SphereGeometry(0.36, 20, 16), glowRed);
-      bussard.position.set(s * 1.9, 0.95, -0.35); g.add(bussard);
-      // warp grille (glowing blue strip) along the nacelle
-      const grille = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.18, 2.2), glowWarp);
-      grille.position.set(s * (1.9 - 0.32), 0.95, 1.3); g.add(grille);
-      const grille2 = grille.clone(); grille2.position.x = s * (1.9 + 0.32); g.add(grille2);
-      // rear warp glow
-      const trail = glowSprite("rgba(120,170,255,1)", 1.5); trail.position.set(s * 1.9, 0.95, 2.6); g.add(trail);
+      const sp = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 3.6), s > 0 ? neonMag : neonCyan);
+      sp.position.set(s * 0.46, 0.16, 0.1); g.add(sp); neon.push(sp);
+    });
+    const spineTop = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 4.0), neonOrange); spineTop.position.set(0, 0.42, 0.0); g.add(spineTop); neon.push(spineTop);
+
+    // swept wings with neon leading edges + wingtip laser cannons
+    const lasers = [];
+    [-1, 1].forEach((s) => {
+      const wing = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.07, 1.5), titanium);
+      wing.position.set(s * 1.8, -0.05, 0.5); wing.rotation.y = s * 0.52; wing.rotation.z = s * -0.14; g.add(wing);
+      const edge = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.05, 0.12), s > 0 ? neonCyan : neonMag);
+      edge.position.set(s * 1.8, -0.01, -0.18); edge.rotation.y = s * 0.52; edge.rotation.z = s * -0.14; g.add(edge); neon.push(edge);
+      // wingtip cannon + forward laser beam (toggled while firing)
+      const tip = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.6, 10), titanium); tip.rotation.x = Math.PI / 2; tip.position.set(s * 3.0, -0.02, -0.6); g.add(tip);
+      const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 16, 8),
+        new THREE.MeshBasicNodeMaterial({ color: 0xff3a4a, transparent: true, opacity: 0.92, blending: THREE.AdditiveBlending, depthWrite: false }));
+      beam.rotation.x = Math.PI / 2; beam.position.set(s * 3.0, -0.02, -8.6); beam.visible = false; g.add(beam); lasers.push(beam);
     });
 
-    // running lights along the saucer
-    for (let i = 0; i < 10; i++) {
-      const a = (i / 10) * Math.PI * 2;
-      const lite = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 8), glowBlue);
-      lite.position.set(Math.cos(a) * 2.35, 0.06, -2.2 + Math.sin(a) * 2.35); g.add(lite);
-    }
+    // hyperdrive engines at the back (+Z): metal nacelle + glowing core + glow halo
+    [[-0.7, -0.1], [0.7, -0.1], [0, 0.5]].forEach((p) => {
+      const nac = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.42, 1.5, 16), titanium); nac.rotation.x = Math.PI / 2; nac.position.set(p[0], p[1], 2.1); g.add(nac);
+      const core = new THREE.Mesh(new THREE.CircleGeometry(0.3, 22), coreMat); core.position.set(p[0], p[1], 2.88); g.add(core);
+      const glow = glowSprite("rgba(90,210,255,1)", 2.4); glow.position.set(p[0], p[1], 3.05); g.add(glow);
+      engines.push({ core: core, glow: glow });
+    });
 
-    g.visible = false; g.scale.setScalar(0.9); scene.add(g); return g;
+    g.userData = {
+      neon: neon, engines: engines, lasers: lasers,
+      launchers: [new THREE.Vector3(-0.45, -0.08, -2.0), new THREE.Vector3(0.45, -0.08, -2.0)],
+    };
+    g.visible = false; g.scale.setScalar(0.8); scene.add(g); return g;
   }
 
   function buildStars() {
@@ -370,7 +374,22 @@ CTQ.three = (function () {
     heroKey = key; hero = getPlanet(key); hero.group.visible = true; applyHeroTransform();
   }
   function setWarp(level) { warpTarget = Math.max(0, level || 0); }
-  function launchRocket() { if (!api.enabled || !rocket3D) return; rocketFly = 0; rocketFlying = true; rocket3D.visible = true; rocket3D.scale.setScalar(0.9); }
+  function launchRocket() { if (!api.enabled || !rocket3D) return; rocketFly = 0; rocketFlying = true; shipFireT = 0; lastTorpedo = 0; rocket3D.visible = true; rocket3D.scale.setScalar(0.8); }
+
+  // Fire a pair of glowing photon torpedoes from the launchers toward the planet.
+  function fireTorpedoes() {
+    if (!rocket3D) return;
+    const target = hero ? hero.group.position : new THREE.Vector3(0, 20, -8);
+    for (const lp of rocket3D.userData.launchers) {
+      const wp = rocket3D.localToWorld(lp.clone());
+      const dir = target.clone().sub(wp).normalize();
+      const torp = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 12), new THREE.MeshBasicNodeMaterial({ color: 0xffd24a }));
+      torp.add(glowSprite("rgba(255,150,40,1)", 1.3));
+      torp.position.copy(wp);
+      scene.add(torp);
+      torpedoes.push({ mesh: torp, v: dir.multiplyScalar(140), life: 1.5 });
+    }
+  }
 
   function renderFrame() {
     if (busy) return; busy = true;
@@ -402,8 +421,28 @@ CTQ.three = (function () {
       rocket3D.position.set((tx * 0.7) * e, -28 + (ty * 0.7 + 6 + 28) * e, 30 + (tz + 8 - 30) * e);
       if (hero) rocket3D.lookAt(hero.group.position);        // face the destination
       rocket3D.rotateZ(Math.sin(rocketFly * 1.5) * 0.22);    // gentle bank
-      rocket3D.scale.setScalar(0.9 * (1 - 0.55 * e));
-      if (u >= 1) { rocketFlying = false; rocket3D.visible = false; }
+      rocket3D.scale.setScalar(0.8 * (1 - 0.5 * e));
+
+      // pulse the neon trim + hyperdrive cores
+      const ud = rocket3D.userData, pn = 0.65 + 0.35 * Math.sin(t * 9);
+      for (const m of ud.neon) m.material.emissiveIntensity = 3.0 * pn;
+      for (const en of ud.engines) { en.core.material.emissiveIntensity = 3.5 + 2 * Math.sin(t * 16); en.glow.material.opacity = 0.7 * pn; }
+      // strobing wingtip laser fire
+      shipFireT += dt;
+      const laserOn = (shipFireT % 0.45) < 0.08;
+      for (const b of ud.lasers) b.visible = laserOn;
+      // photon torpedo salvos
+      if (shipFireT - lastTorpedo > 0.32) { lastTorpedo = shipFireT; fireTorpedoes(); }
+
+      if (u >= 1) { rocketFlying = false; rocket3D.visible = false; for (const b of ud.lasers) b.visible = false; }
+    }
+
+    // advance photon torpedoes (they keep flying briefly after the ship arrives)
+    for (let i = torpedoes.length - 1; i >= 0; i--) {
+      const tp = torpedoes[i];
+      tp.mesh.position.addScaledVector(tp.v, dt);
+      tp.life -= dt;
+      if (tp.life <= 0) { scene.remove(tp.mesh); if (tp.mesh.geometry) tp.mesh.geometry.dispose(); torpedoes.splice(i, 1); }
     }
 
     const speed = 12 + warp * 1000;

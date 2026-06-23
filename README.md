@@ -15,9 +15,9 @@ atmospheric glow, Saturn and Jupiter with rings, a blazing Sun** — against a
 **Milky Way skybox**, with ACES tone mapping and **Unreal-bloom** post-processing.
 It's packed with extras: a **rotating space station**, a drifting **3D asteroid
 field**, **GPU-particle nebulae**, **volumetric god-rays** on the Sun, and a
-**detailed year-3167 starship** (saucer, engineering hull, glowing warp nacelles,
-deflector dish) that flies between planets during Rocket Fuel launches with a
-warp-speed starfield. The headliner is an **Interstellar-style black hole** —
+**year-3167 strike ship** — faceted sun-forged titanium-alloy hull, pulsing neon
+trim, glowing hyperdrive cores — that **fires photon torpedoes and lasers** as it
+flies between planets during Rocket Fuel launches with a warp-speed starfield. The headliner is an **Interstellar-style black hole** —
 glowing accretion disk + photon ring **plus real screen-space gravitational
 lensing** that bends the scene around it — and it's a possible launch destination.
 
